@@ -121,6 +121,16 @@ Choose option `2` from the launcher. Open the **Local URL** in your phone's brow
 
 ---
 
+## 🎙️ Always-On Voice Assistant ("Hey Strike")
+PocketStrike AI features a background voice assistant that allows phone-wide, hands-free interaction:
+
+* **Background Wake-Word Listener**: Simply say **"Hey Strike"**, *"Strike"*, or *"Hey Pocket Strike"* while watching movies, playing games, or using any app on your phone.
+* **Auto Tool Execution & Speech Response**: The AI processes your spoken query, executes system/network/automation tools, and speaks the answer aloud using Android Text-To-Speech (`termux-tts-speak`).
+* **Heads-Up Screen Banners**: Displays a lockscreen / notification card with the response directly over your active app.
+* **Web UI Voice Mode**: Tap the glowing mic button in the top-right header of the Web UI to enable continuous hands-free voice mode with automatic browser SpeechSynthesis read-back.
+
+---
+
 ## 🔌 Model Context Protocol (MCP) Integration
 PocketStrike AI natively supports the **Model Context Protocol (MCP)** using the HTTP/SSE (Server-Sent Events) transport. This turns your Termux AI agent into an MCP Client, enabling it to dynamically load, query, and run tools hosted on remote servers (e.g., your PC, local network, or cloud).
 
