@@ -50,6 +50,16 @@ except Exception:
     print("Invalid Configuration")
 ' 2>/dev/null)
         echo -e " Active Model: ${CYAN}${INFO}${NC}"
+        VOICE_INFO=$(python -c '
+import json
+try:
+    with open("config.json") as f:
+        cfg = json.load(f)
+        print("Active (Hey Strike)" if cfg.get("voice_enabled", True) else "Disabled")
+except Exception:
+    print("Disabled")
+' 2>/dev/null)
+        echo -e " Voice Assistant: ${CYAN}${VOICE_INFO}${NC}"
     fi
     echo -e "${GREEN}──────────────────────────────────────────────────────────────────────────${NC}"
     echo -e " Please choose an option:\n"

@@ -5024,7 +5024,6 @@ def get_status():
 def send_static(path):
     return send_from_directory('static', path)
 
-# Serve workspace files statically (for image/video chat previews)
 @app.route('/workspace/<path:filename>')
 def serve_workspace_file(filename):
     # Normalize path and check directory bounds for safety
@@ -5032,6 +5031,123 @@ def serve_workspace_file(filename):
     if not safe_path.startswith(os.path.abspath(WORKSPACE_DIR)):
         return jsonify({"error": "Access denied"}), 403
     return send_from_directory(WORKSPACE_DIR, filename)
+
+def voice_listener_daemon():
+    """
+    Always-On Background Voice Listener Daemon for Termux/Android.
+    Listens for wake word 'hey strike' or trigger signals across all apps,
+    executes ReAct tools, and responds back via Android TTS and lockscreen notifications.
+    """
+    if not config.get("voice_enabled", True):
+        return
+        
+    print("🎙️ Background Voice Assistant Daemon started (Wake word: 'Hey Strike')...")
+    import subprocess
+    import time
+    import shutil
+    import threading
+
+    has_termux_stt = shutil.which("termux-speech-to-text") is not None
+
+    while True:
+        try:
+            time.sleep(2.0)
+            if not config.get("voice_enabled", True):
+                time.sleep(5)
+                continue
+
+            trigger_file = os.path.join(WORKSPACE_DIR, ".voice_trigger")
+            spoken_text = ""
+
+            if os.path.exists(trigger_file):
+                try:
+                    os.remove(trigger_file)
+                except Exception:
+                    pass
+                if has_termux_stt:
+                    vibrate_device(150)
+                    speak_text("Listening")
+                    res = subprocess.run(["termux-speech-to-text"], capture_output=True, text=True, timeout=12)
+                    if res.returncode == 0 and res.stdout.strip():
+                        spoken_text = res.stdout.strip()
+            else:
+                # Check Python speech_recognition if installed
+                try:
+                    import speech_recognition as sr
+                    r = sr.Recognizer()
+                    with sr.Microphone() as source:
+                        r.adjust_for_ambient_noise(source, duration=0.3)
+                        audio = r.listen(source, timeout=2, phrase_time_limit=6)
+                        spoken_text = r.recognize_google(audio)
+                except Exception:
+                    pass
+
+            if not spoken_text:
+                continue
+
+            clean_text = spoken_text.lower().strip()
+            wake_words = ["hey strike", "strike", "hey pocket strike", "pocket strike", "hi strike", "ok strike"]
+            triggered = any(w in clean_text for w in wake_words)
+
+            if triggered:
+                print(f"\n🎙️ [Background Voice Assistant Triggered]: '{spoken_text}'")
+                command_prompt = clean_text
+                for w in wake_words:
+                    command_prompt = command_prompt.replace(w, "").strip()
+
+                vibrate_device(200)
+                if not command_prompt:
+                    speak_text("Yes? How can I help?")
+                    continue
+
+                messages = load_unified_history()
+                messages.append({"role": "user", "content": command_prompt})
+                if len(messages) > 60:
+                    messages = [messages[0]] + messages[-59:]
+
+                ai_response, updated_history = get_ai_response_with_tools(messages)
+                save_unified_history(updated_history)
+
+                threading.Thread(target=auto_evolve_memory_background, args=(updated_history.copy(),), daemon=True).start()
+
+                print(f"🔊 Speaking response: {ai_response[:60]}...")
+                speak_text(ai_response)
+                send_android_notification("PocketStrike Voice AI", ai_response)
+
+        except Exception as e:
+            time.sleep(3)
+
+@app.route('/api/voice/trigger', methods=['POST'])
+def trigger_voice():
+    """Endpoint to trigger background speech-to-text in Termux or query voice AI."""
+    data = request.json or {}
+    text = data.get("text", "")
+
+    if text:
+        messages = load_unified_history()
+        messages.append({"role": "user", "content": text})
+        if len(messages) > 60:
+            messages = [messages[0]] + messages[-59:]
+
+        ai_response, updated_history = get_ai_response_with_tools(messages)
+        save_unified_history(updated_history)
+
+        import threading
+        threading.Thread(target=auto_evolve_memory_background, args=(updated_history.copy(),), daemon=True).start()
+
+        if data.get("speak_on_device", False):
+            speak_text(ai_response)
+            send_android_notification("PocketStrike Voice AI", ai_response)
+
+        return jsonify({"response": ai_response, "history": updated_history})
+    else:
+        trigger_file = os.path.join(WORKSPACE_DIR, ".voice_trigger")
+        try:
+            with open(trigger_file, "w") as f:
+                f.write("1")
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+        return jsonify({"status": "Voice trigger armed"})
 
 if __name__ == '__main__':
     import logging
@@ -5061,6 +5177,16 @@ if __name__ == '__main__':
         sentinel_thread.start()
     except Exception as e:
         print(f"Error starting sentinel daemon: {e}")
+
+    # Start Voice Assistant Daemon Thread
+    voice_status = "Disabled"
+    if config.get("voice_enabled", True):
+        try:
+            voice_thread = threading.Thread(target=voice_listener_daemon, daemon=True)
+            voice_thread.start()
+            voice_status = "Active ('Hey Strike')"
+        except Exception as e:
+            print(f"Error starting voice daemon: {e}")
 
     # 2. Launch Telegram Bot if enabled
     telegram_status = "Disabled"
@@ -5210,6 +5336,7 @@ if __name__ == '__main__':
     print(f"  AI Provider:     {white_color}{config.get('provider_name', 'None')}{reset_color}")
     print(f"  Model:           {white_color}{config.get('model', 'None')}{reset_color}")
     print(f"  Telegram Bot:    {white_color}{telegram_status}{reset_color}")
+    print(f"  Voice Assistant: {white_color}{voice_status}{reset_color}")
     print(f"  Shizuku Status:  {white_color}{shizuku_status}{reset_color}")
     print(f"{green_color}──────────────────────────────────────────────────────────────────────{reset_color}\n")
 

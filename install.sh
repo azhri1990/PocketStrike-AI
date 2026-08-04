@@ -57,9 +57,9 @@ if [ ! -f "launch.sh" ]; then
     CLONED=true
 fi
 
-# 4. Install Flask and Requests
+# 4. Install Flask, Requests, and SpeechRecognition
 echo -e "\n${BLUE}⚡ [3/4] Installing Python dependency layers...${NC}"
-pip install flask requests
+pip install flask requests SpeechRecognition
 
 # 5. Make scripts executable
 echo -e "\n${BLUE}⚡ [4/4] Setting execution system permissions...${NC}"

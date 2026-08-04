@@ -60,6 +60,7 @@ cd ~/PocketStrike-AI && bash launch.sh
 
 ## ✨ Features
 
+*   **Always-On Background Voice Assistant ("Hey Strike")**: Hands-free background voice listener daemon running in Termux that detects wake word *"Hey Strike"* while watching movies or using other apps, processes commands via the ReAct agent, and speaks answers back aloud via Android TTS & lockscreen notification cards. Also features Web Speech API Voice Mode in the Web UI.
 *   **Unified Chat History Engine**: The agent maintains a single unified mind across platforms. Messages sent via Telegram are instantly visible in the Web interface, and vice-versa, synchronizing context in real-time.
 *   **60-Message sliding window**: Supports deep conversation tracking by passing up to the last 60 message states to the LLM API, while preserving complete logs on local storage.
 *   **Self-Evolving Long-Term Memory**: The AI dynamically updates `agent/user.md`, `agent/memory.md`, and `agent/agent.md` files via background conversation reflections. These files are re-injecting on every turn to adapt to your preferences.

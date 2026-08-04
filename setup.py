@@ -230,6 +230,13 @@ def main():
                 print(f"  5. Run this setup wizard again or let the server auto-detect it later.")
                 get_input("Press Enter to continue with setup", "")
 
+    # 5.5 Voice Assistant Setup
+    voice_enabled = True
+    print(f"\n{YELLOW}Always-On Background Voice Assistant ('Hey Strike'):{NC}")
+    voice_choice = get_input("Do you want to enable 'Hey Strike' Voice Assistant mode? (y/n)", "y").lower()
+    if voice_choice in ["n", "no"]:
+        voice_enabled = False
+
     # 6. Build and save the config object
     config = {
         "provider": provider_id,
@@ -239,7 +246,8 @@ def main():
         "model": selected_model,
         "telegram_enabled": telegram_enabled,
         "telegram_token": telegram_token,
-        "shizuku_enabled": shizuku_enabled
+        "shizuku_enabled": shizuku_enabled,
+        "voice_enabled": voice_enabled
     }
 
     try:
@@ -259,6 +267,7 @@ def main():
         print(f"  Telegram Bot:    {'Enabled' if telegram_enabled else 'Disabled'}")
         if telegram_enabled:
             print(f"  TG Token:        {'*' * 8}{telegram_token[-4:] if len(telegram_token) > 4 else ''}")
+        print(f"  Voice Assistant: {'Enabled (Wake word: Hey Strike)' if voice_enabled else 'Disabled'}")
         print(f"  Shizuku Control: {'Enabled/Configured' if shizuku_enabled else 'Disabled/Not Configured'}")
         print(f"\n{GREEN}PocketstrikeAI is ready to be launched!{NC}")
         print(f"Run {YELLOW}./launch.sh{NC} and choose option 2 to launch.")

@@ -24,6 +24,7 @@ const statusModel = document.getElementById('statusModel');
 const statusTelegram = document.getElementById('statusTelegram');
 const themeToggleBtn = document.getElementById('themeToggleBtn');
 const themeIcon = document.getElementById('themeIcon');
+const voiceBtn = document.getElementById('voiceBtn');
 
 // MCP DOM Elements
 const mcpModal = document.getElementById('mcpModal');
@@ -46,6 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initEventListeners();
     fetchBackendStatus();
     loadMcpConnections();
+    initVoiceAssistant();
     renderAll();
 });
 
@@ -477,6 +479,9 @@ async function handleSend() {
         saveConversations();
         renderAll();
         scrollToBottom();
+        if (isVoiceActive && streamedText) {
+            speakTextResponse(streamedText);
+        }
     }
 }
 
@@ -1168,3 +1173,129 @@ async function handleRemoveMcp(name) {
 
 // Run MCP connection health check every 15 seconds to update the status dot
 setInterval(loadMcpConnections, 15000);
+
+// ==========================================
+// 🎙️ Voice Assistant Mode ("Hey Strike")
+// ==========================================
+let isVoiceActive = false;
+let speechRecognitionObj = null;
+
+function speakTextResponse(text) {
+    if (!('speechSynthesis' in window)) return;
+    try {
+        window.speechSynthesis.cancel();
+        // Clean markdown syntax for speech
+        const cleanText = text
+            .replace(/```[\s\S]*?```/g, 'Code block omitted.')
+            .replace(/`([^`]+)`/g, '$1')
+            .replace(/[\*\_~#]/g, '')
+            .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1');
+            
+        const utterance = new SpeechSynthesisUtterance(cleanText);
+        utterance.rate = 1.0;
+        utterance.pitch = 1.0;
+        
+        // Select an English voice if available
+        const voices = window.speechSynthesis.getVoices();
+        const preferredVoice = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Natural') || v.name.includes('Google')));
+        if (preferredVoice) utterance.voice = preferredVoice;
+        
+        window.speechSynthesis.speak(utterance);
+    } catch (e) {
+        console.error("Speech Synthesis error:", e);
+    }
+}
+
+function initVoiceAssistant() {
+    if (!voiceBtn) return;
+    
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+        voiceBtn.title = "Voice Assistant not supported in this browser (Requires Chrome/Edge/Safari)";
+        voiceBtn.style.opacity = "0.5";
+        return;
+    }
+
+    speechRecognitionObj = new SpeechRecognition();
+    speechRecognitionObj.continuous = true;
+    speechRecognitionObj.interimResults = true;
+    speechRecognitionObj.lang = 'en-US';
+
+    voiceBtn.addEventListener('click', () => {
+        isVoiceActive = !isVoiceActive;
+        if (isVoiceActive) {
+            startVoiceListening();
+        } else {
+            stopVoiceListening();
+        }
+    });
+
+    speechRecognitionObj.onresult = (event) => {
+        let finalTranscript = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) {
+                finalTranscript += event.results[i][0].transcript;
+            }
+        }
+
+        if (finalTranscript) {
+            const lowerText = finalTranscript.toLowerCase().strip ? finalTranscript.toLowerCase().strip() : finalTranscript.toLowerCase().trim();
+            const wakeWords = ["hey strike", "strike", "hey pocket strike", "pocket strike", "ok strike", "hi strike"];
+            const hasWakeWord = wakeWords.some(w => lowerText.includes(w));
+
+            if (hasWakeWord || isVoiceActive) {
+                let cleanPrompt = lowerText;
+                wakeWords.forEach(w => {
+                    cleanPrompt = cleanPrompt.replace(w, '').trim();
+                });
+
+                if (cleanPrompt.length > 1) {
+                    console.log("🎙️ Voice command recognized:", cleanPrompt);
+                    chatInput.value = cleanPrompt;
+                    autoGrowInput();
+                    handleSend();
+                }
+            }
+        }
+    };
+
+    speechRecognitionObj.onerror = (event) => {
+        console.warn("Speech Recognition notice:", event.error);
+        if (event.error === 'not-allowed') {
+            stopVoiceListening();
+            alert("Microphone permission denied. Please allow microphone access in browser settings.");
+        }
+    };
+
+    speechRecognitionObj.onend = () => {
+        // Auto restart if voice mode is still enabled
+        if (isVoiceActive) {
+            setTimeout(() => {
+                try { speechRecognitionObj.start(); } catch (e) {}
+            }, 400);
+        }
+    };
+}
+
+function startVoiceListening() {
+    if (!speechRecognitionObj) return;
+    try {
+        speechRecognitionObj.start();
+        isVoiceActive = true;
+        voiceBtn.classList.add('active');
+        voiceBtn.title = "Voice Assistant Active ('Hey Strike') - Click to stop";
+    } catch (e) {
+        console.error("Failed to start voice listening:", e);
+    }
+}
+
+function stopVoiceListening() {
+    if (!speechRecognitionObj) return;
+    try {
+        speechRecognitionObj.stop();
+    } catch (e) {}
+    isVoiceActive = false;
+    voiceBtn.classList.remove('active');
+    voiceBtn.title = "Voice Assistant Mode ('Hey Strike')";
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+}
