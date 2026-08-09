@@ -5353,11 +5353,28 @@ def chat():
 
 @app.route('/api/status', methods=['GET'])
 def get_status():
+    import shutil
+    is_termux = shutil.which("pkg") is not None or os.path.exists("/data/data/com.termux")
+    os_type = "termux" if is_termux else "linux"
+    
+    os_name = "Android / Termux" if is_termux else "Linux System"
+    if not is_termux and os.path.exists("/etc/os-release"):
+        try:
+            with open("/etc/os-release") as f:
+                for line in f:
+                    if line.startswith("PRETTY_NAME="):
+                        os_name = line.split("=")[1].strip().strip('"')
+                        break
+        except Exception:
+            pass
+
     status = {
         "provider": config.get("provider_name", "None"),
         "model": config.get("model", "None"),
         "telegram_enabled": config.get("telegram_enabled", False),
-        "telegram_status": "Active" if config.get("telegram_enabled", False) else "Disabled"
+        "telegram_status": "Active" if config.get("telegram_enabled", False) else "Disabled",
+        "os_type": os_type,
+        "os_name": os_name
     }
     return jsonify(status)
 

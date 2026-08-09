@@ -232,6 +232,47 @@ async function fetchBackendStatus() {
             } else {
                 tgBadge.className = 'status-value-tg disabled';
             }
+
+            // If running on Linux, render Cyber Dragon logo and Linux system badges
+            if (data.os_type === "linux") {
+                document.body.classList.add("os-linux");
+                const subNote = document.getElementById("welcomeSubnote");
+                if (subNote) subNote.textContent = `PocketstrikeAI is online and running natively on ${data.os_name || 'Linux'}.`;
+                const footerNote = document.querySelector(".footer-note");
+                if (footerNote) footerNote.textContent = `PocketstrikeAI v1.0 • Running natively on ${data.os_name || 'Linux'}`;
+                
+                const sidebarDragonSvg = `<svg class="logo-icon linux-dragon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <g stroke="url(#dragonStroke)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none">
+                        <path d="M12 2L14.5 7L20 8.5L16 12.5L17.5 18L12 15L6.5 18L8 12.5L4 8.5L9.5 7L12 2Z" fill="url(#dragonGrad)"/>
+                        <path d="M12 6C10 9 7 11 4 12C7 13 10 15 12 19C14 15 17 13 20 12C17 11 14 9 12 6Z" fill="url(#dragonInner)"/>
+                        <circle cx="12" cy="11" r="1.5" fill="#00FFCC"/>
+                        <path d="M9 14L12 16L15 14"/>
+                    </g>
+                    <defs>
+                        <linearGradient id="dragonGrad" x1="4" y1="2" x2="20" y2="18" gradientUnits="userSpaceOnUse">
+                            <stop stop-color="#3B82F6" />
+                            <stop offset="0.5" stop-color="#8B5CF6" />
+                            <stop offset="1" stop-color="#EC4899" />
+                        </linearGradient>
+                        <linearGradient id="dragonStroke" x1="4" y1="2" x2="20" y2="18" gradientUnits="userSpaceOnUse">
+                            <stop stop-color="#00FFCC" />
+                            <stop offset="1" stop-color="#3B82F6" />
+                        </linearGradient>
+                        <linearGradient id="dragonInner" x1="4" y1="2" x2="20" y2="18" gradientUnits="userSpaceOnUse">
+                            <stop stop-color="#10B981" />
+                            <stop offset="1" stop-color="#8B5CF6" />
+                        </linearGradient>
+                    </defs>
+                </svg>`;
+
+                const welcomeDragonSvg = sidebarDragonSvg.replace('class="logo-icon linux-dragon"', 'class="welcome-logo-icon linux-dragon"');
+
+                const sidebarLogo = document.querySelector(".logo-container .logo-icon");
+                if (sidebarLogo) sidebarLogo.outerHTML = sidebarDragonSvg;
+
+                const welcomeLogo = document.querySelector(".glowing-logo .welcome-logo-icon");
+                if (welcomeLogo) welcomeLogo.outerHTML = welcomeDragonSvg;
+            }
         }
     } catch (error) {
         console.error('Error fetching backend status:', error);
