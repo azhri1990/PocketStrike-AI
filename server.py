@@ -568,37 +568,39 @@ def get_system_prompt():
                 agent_content = f.read().strip()
         except Exception: pass
 
+    import shutil
+    is_termux = shutil.which("pkg") is not None or os.path.exists("/data/data/com.termux")
+    os_name = "Android / Termux" if is_termux else "Linux System"
+    if not is_termux and os.path.exists("/etc/os-release"):
+        try:
+            with open("/etc/os-release") as f:
+                for line in f:
+                    if line.startswith("PRETTY_NAME="):
+                        os_name = line.split("=")[1].strip().strip('"')
+                        break
+        except Exception:
+            pass
+
+    platform_guidance = ""
+    if is_termux:
+        platform_guidance = """CURRENT RUNTIME ENVIRONMENT: Android / Termux
+- You are running inside Termux on Android.
+- Mobile API tools (Termux:API, camera, location, TTS, notifications) and ADB controls are active.
+- Shell commands executed via execute_termux_command run in Termux bash."""
+    else:
+        platform_guidance = f"""CURRENT RUNTIME ENVIRONMENT: Native {os_name}
+- You are running natively on a Linux machine ({os_name}).
+- You have UNRESTRICTED access to execute any Linux CLI commands, security tools (nmap, gobuster, sqlmap, hydra, john, wireshark, etc.), systemctl, apt, docker, and bash scripts via execute_termux_command.
+- CRITICAL TOOL ROUTING RULE: When running on Linux, DO NOT call Termux-only mobile API tools (like take_camera_photo, send_sms, make_phone_call, audit_sms_inbox, read_contacts_list, read_phone_sensors, set_brightness).
+- Instead, perform tasks using standard Linux CLI tools via execute_termux_command (e.g. use 'nmap' for port scanning, 'ps aux' for process monitoring, 'curl/wget' for web requests, 'notify-send' for screen alerts, 'spd-say' for voice output, etc.)."""
+
     import datetime
     current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S (Day: %A)")
 
-    # Load remote MCP tools
-    mcp_conns = load_mcp_connections()
-    mcp_tool_lines = []
-    tool_counter = 65
-    for conn in mcp_conns:
-        server_name = conn.get("name")
-        for t in conn.get("tools", []):
-            name = t.get("name")
-            desc = t.get("description", "No description provided.")
-            
-            properties = t.get("inputSchema", {}).get("properties", {})
-            req_list = t.get("inputSchema", {}).get("required", [])
-            args_str_list = []
-            for prop_name, prop_val in properties.items():
-                is_req = prop_name in req_list
-                req_badge = "" if is_req else "=None"
-                args_str_list.append(f"{prop_name}{req_badge}")
-                
-            args_repr = ", ".join(args_str_list)
-            mcp_tool_lines.append(f"{tool_counter}. {name}({args_repr})\n    {desc} (Remote MCP: {server_name})")
-            tool_counter += 1
-            
-    mcp_tools_block = ""
-    if mcp_tool_lines:
-        mcp_tools_block = "\n" + "\n".join(mcp_tool_lines)
-
     return f"""{agent_content}
 Current local time and date: {current_time}
+{platform_guidance}
+
 You are a self-evolving AI agent that grows more capable over time by reflecting on your experiences and automatically updating your persistent memory files (user.md, memory.md, and agent.md).
 
 Your workspace directory is: {WORKSPACE_DIR} (located in the system storage). Always save files requested by the user inside this folder.
