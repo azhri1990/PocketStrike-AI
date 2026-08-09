@@ -561,7 +561,7 @@ def get_system_prompt():
                 memory_content = f.read().strip()
         except Exception: pass
 
-    agent_content = "You are PocketStrike AI, a powerful local security and system assistant running in Termux on the user's Android phone."
+    agent_content = "You are PocketStrike AI, a powerful local security and system assistant running in the Linux terminal (or Termux on Android). You have full access to execute any Linux terminal commands, audit security parameters, run background tasks, parse files, scan networks, and manage systems."
     if os.path.exists(agent_path):
         try:
             with open(agent_path, "r", encoding="utf-8") as f:
@@ -601,7 +601,7 @@ def get_system_prompt():
 Current local time and date: {current_time}
 You are a self-evolving AI agent that grows more capable over time by reflecting on your experiences and automatically updating your persistent memory files (user.md, memory.md, and agent.md).
 
-Your workspace directory is: {WORKSPACE_DIR} (located in the phone's internal storage). Always save files requested by the user inside this folder.
+Your workspace directory is: {WORKSPACE_DIR} (located in the system storage). Always save files requested by the user inside this folder.
 Your project root directory is: {os.path.abspath(os.path.dirname(__file__))} (where your codebase lives). You are allowed to read code files here to explain them, but write access is strictly denied to keep this folder safe from modification.
 Critical: You are strictly sandboxed. All write operations (write_file_content) are only allowed inside your workspace directory ({WORKSPACE_DIR}). You are forbidden from writing files in your project root or modifying your own running server code.
 
@@ -622,7 +622,7 @@ If you need to use a tool to answer the user's request, you must respond with EX
 
 Available Tools:
 1. get_system_stats()
-   Returns battery level, charging status, free RAM, and storage space in Termux.
+   Returns battery level, charging status, free RAM, and storage space in Linux/Termux.
 2. local_port_scan(target_ip, ports_list=[...])
    Scans a target IP address for open ports. Use lists like [22, 80, 443]. Keep target list short.
 3. list_directory(path=".")
@@ -634,8 +634,8 @@ Available Tools:
 6. run_python_script(script_name, args=[...])
    Runs a Python script written by you inside your workspace directory and returns its output. Use this to run custom scripts, write new tools, or build calculations.
 7. execute_termux_command(command)
-   Runs a shell command inside Termux (e.g. 'whoami', 'uname -a', 'ping', 'curl', 'nmap', etc.) and returns the standard output.
-   Note: This operates inside a persistent stateful background shell session. Directory changes ('cd') and environment variables carry over to subsequent commands.
+   Runs any Linux / Termux bash shell command in the system terminal (e.g. 'whoami', 'uname -a', 'systemctl', 'apt', 'git', 'nmap', 'curl', 'grep', 'find', 'python3', 'docker', 'ip a', etc.) and returns standard output.
+   Note: Operates inside a persistent, stateful background shell session on Linux and Termux. Directory changes ('cd') and environment variables carry over across turns.
 8. web_search(query)
    Scrapes DuckDuckGo HTML for live search results. Use this to lookup CVEs or current information.
 9. fetch_url(url)
@@ -1379,59 +1379,63 @@ def execute_termux_command(command):
 
 def audit_android_security():
     audit = {}
-    try:
-        import subprocess
-        # 1. Check Android OS parameters via getprop interface
-        release_res = subprocess.run(["getprop", "ro.build.version.release"], capture_output=True, text=True, timeout=3)
-        patch_res = subprocess.run(["getprop", "ro.build.version.security_patch"], capture_output=True, text=True, timeout=3)
-        sdk_res = subprocess.run(["getprop", "ro.build.version.sdk"], capture_output=True, text=True, timeout=3)
-        brand_res = subprocess.run(["getprop", "ro.product.brand"], capture_output=True, text=True, timeout=3)
-        model_res = subprocess.run(["getprop", "ro.product.model"], capture_output=True, text=True, timeout=3)
-        
-        audit["android_version"] = release_res.stdout.strip() if release_res.returncode == 0 else "Unknown"
-        audit["security_patch"] = patch_res.stdout.strip() if patch_res.returncode == 0 else "Unknown"
-        audit["sdk_api_level"] = sdk_res.stdout.strip() if sdk_res.returncode == 0 else "Unknown"
-        audit["device_brand"] = brand_res.stdout.strip() if brand_res.returncode == 0 else "Unknown"
-        audit["device_model"] = model_res.stdout.strip() if model_res.returncode == 0 else "Unknown"
-    except Exception as e:
-        audit["properties_error"] = str(e)
-        
-    # 2. Check for SuperUser/Root trail binary signatures
-    root_signatures = ["/system/bin/su", "/system/xbin/su", "/sbin/su", "/system/sd/xbin/su", "/system/bin/failsafe/su", "/data/local/xbin/su", "/data/local/bin/su"]
-    su_found = False
-    for path in root_signatures:
-        if os.path.exists(path):
-            su_found = True
-            break
-            
-    if not su_found:
-        # Check command path trail
-        su_found = shutil.which("su") is not None
-        
-    audit["superuser_root_access"] = "Active/Rooted" if su_found else "Not Rooted / Standard User"
+    import subprocess
+    import shutil
     
-    # 3. Audit Termux installations security dependencies (outdated pkg check)
-    try:
-        import subprocess
-        # Check if packages can be updated or list them
-        upgradable_res = subprocess.run(["pkg", "list-upgradable"], capture_output=True, text=True, timeout=10)
-        if upgradable_res.returncode == 0:
-            lines = [l.strip() for l in upgradable_res.stdout.split("\n") if l.strip()]
-            audit["upgradable_packages_count"] = len(lines)
-            audit["upgradable_packages_list"] = lines[:15] # Return top 15 upgradable packages
+    if shutil.which("getprop"):
+        # Android / Termux Security Audit
+        try:
+            release_res = subprocess.run(["getprop", "ro.build.version.release"], capture_output=True, text=True, timeout=3)
+            patch_res = subprocess.run(["getprop", "ro.build.version.security_patch"], capture_output=True, text=True, timeout=3)
+            sdk_res = subprocess.run(["getprop", "ro.build.version.sdk"], capture_output=True, text=True, timeout=3)
+            brand_res = subprocess.run(["getprop", "ro.product.brand"], capture_output=True, text=True, timeout=3)
+            model_res = subprocess.run(["getprop", "ro.product.model"], capture_output=True, text=True, timeout=3)
+            
+            audit["platform"] = "Android / Termux"
+            audit["android_version"] = release_res.stdout.strip() if release_res.returncode == 0 else "Unknown"
+            audit["security_patch"] = patch_res.stdout.strip() if patch_res.returncode == 0 else "Unknown"
+            audit["sdk_api_level"] = sdk_res.stdout.strip() if sdk_res.returncode == 0 else "Unknown"
+            audit["device_brand"] = brand_res.stdout.strip() if brand_res.returncode == 0 else "Unknown"
+            audit["device_model"] = model_res.stdout.strip() if model_res.returncode == 0 else "Unknown"
+        except Exception as e:
+            audit["properties_error"] = str(e)
+            
+        root_signatures = ["/system/bin/su", "/system/xbin/su", "/sbin/su", "/system/sd/xbin/su", "/system/bin/failsafe/su", "/data/local/xbin/su", "/data/local/bin/su"]
+        su_found = any(os.path.exists(path) for path in root_signatures) or shutil.which("su") is not None
+        audit["superuser_root_access"] = "Active/Rooted" if su_found else "Not Rooted / Standard User"
+        
+        try:
+            adb_res = subprocess.run(["getprop", "init.svc.adbd"], capture_output=True, text=True, timeout=3)
+            audit["adb_debugging_status"] = "Active/Enabled" if "running" in adb_res.stdout else "Disabled"
+        except Exception:
+            pass
+    else:
+        # Standard Linux Security Audit (Debian / Ubuntu / Kali / Mint / Arch)
+        audit["platform"] = "Linux Desktop / Server"
+        try:
+            uname_res = subprocess.run(["uname", "-sr"], capture_output=True, text=True, timeout=3)
+            audit["kernel_version"] = uname_res.stdout.strip() if uname_res.returncode == 0 else "Unknown"
+            
+            if os.path.exists("/etc/os-release"):
+                with open("/etc/os-release", "r") as f:
+                    for line in f:
+                        if line.startswith("PRETTY_NAME="):
+                            audit["os_name"] = line.split("=")[1].strip().strip('"')
+                            break
+        except Exception as e:
+            audit["linux_info_error"] = str(e)
+            
+        is_root = os.geteuid() == 0 if hasattr(os, "geteuid") else False
+        audit["superuser_root_access"] = "Active Root User (uid=0)" if is_root else "Standard Non-Root User"
+
+        # Check Linux firewall state (ufw or iptables)
+        if shutil.which("ufw"):
+            ufw_res = subprocess.run(["ufw", "status"], capture_output=True, text=True, timeout=3)
+            audit["firewall_ufw_status"] = ufw_res.stdout.splitlines()[0] if ufw_res.returncode == 0 else "Unknown"
         else:
-            audit["upgradable_packages_count"] = "Unknown"
-    except Exception:
-        pass
-        
-    # 4. Check USB Debugging Developer Options state
-    try:
-        adb_res = subprocess.run(["getprop", "init.svc.adbd"], capture_output=True, text=True, timeout=3)
-        audit["adb_debugging_status"] = "Active/Enabled" if "running" in adb_res.stdout else "Disabled"
-    except Exception:
-        pass
-        
-    # 5. Extract security evaluation recommendation
+            audit["firewall_ufw_status"] = "ufw not installed"
+
+    # Common security recommendations
     evaluation = []
     if su_found:
         evaluation.append("WARNING: SuperUser root access detected. Ensure you have custom firewalls or verified root binaries installed to prevent malicious permission escalations.")
