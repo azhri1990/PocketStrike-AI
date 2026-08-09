@@ -58,26 +58,6 @@ cd ~/PocketStrike-AI && bash launch.sh
 
 ---
 
-## ✨ Features
-
-*   **Always-On Background Voice Assistant ("Hey Strike")**: Hands-free background voice listener daemon running in Termux that detects wake word *"Hey Strike"* while watching movies or using other apps, processes commands via the ReAct agent, and speaks answers back aloud via Android TTS & lockscreen notification cards. Also features Web Speech API Voice Mode in the Web UI.
-*   **Unified Chat History Engine**: The agent maintains a single unified mind across platforms. Messages sent via Telegram are instantly visible in the Web interface, and vice-versa, synchronizing context in real-time.
-*   **60-Message sliding window**: Supports deep conversation tracking by passing up to the last 60 message states to the LLM API, while preserving complete logs on local storage.
-*   **Self-Evolving Long-Term Memory**: The AI dynamically updates `agent/user.md`, `agent/memory.md`, and `agent/agent.md` files via background conversation reflections. These files are re-injecting on every turn to adapt to your preferences.
-*   **Active Threat Intrusion Sentinel**: Runs a background daemon thread that checks `/proc/net/arp` and network metrics for active ARP Spoofing/MITM threats, automatically sending system lockscreen banners (via `termux-api` notification), text-to-speech warnings, and Telegram bot alerts.
-*   **Rich Media Chat Previews**: The Web UI automatically renders dynamic, cached-busted images (`<img>`) and video players (`<video>`) inside chat bubbles whenever workspace screenshots, photos, or recordings are generated or mentioned.
-*   **Self-Dependency Doctor & Auto-Installer**: Runs a full environment diagnostic (`check_system_health`) checking for required CLI utilities and Python modules, and can automatically execute non-interactive `pkg install` and `pip install` repairs if requested.
-*   **Persistent Background Scheduler**: A daemon thread checks for scheduled reminders or recurring cron intervals (e.g. *"remind me to blink my eyes every 1 minute"*) and alerts you locally or via Telegram.
-*   **Audio Beep & System Fallback**: If the device lacks Termux:API, the scheduler utilizes the ASCII Bell code (`\a`) to beep/vibrate Termux natively, and dynamically redirects screen alerts to Telegram.
-*   **Robust ADB/Shizuku execution**: Features parameter-safe parsing and automatic standard ADB fallbacks if the Shizuku emulator binder (`rish`) becomes unauthorized or goes offline.
-*   **Web & Network Security Auditors**: Built-in scanners to detect active Wi-Fi Man-in-the-Middle (ARP Spoofing) attacks, audit VPN connection leaks, and evaluate SSL certificates and HTTP security headers.
-*   **Stateful persistent Terminal Session**: Maintains directory changes (`cd`) and environmental variables across multiple command runs, operating inside a persistent background shell.
-*   **Subnet-Wide Network Sweeps**: Scans class C subnets (1-254) in less than 3 seconds using 80 parallel workers, resolving device hostnames automatically.
-*   **Parallel Port Scanner**: Checks up to 100 ports concurrently on local hosts using thread pools, automatically identifying active service names (SSH, HTTP, Database, etc.).
-*   **Deep RAG Web Search**: Scrapes DuckDuckGo HTML and automatically fetches the actual main body text of the top 2 web pages in the background. It feeds this text directly to the AI, bypassing knowledge cutoff limitations.
-
----
-
 ## 🛠️ Installation & Setup on Termux
 
 Follow these steps to configure your Termux server:
@@ -142,16 +122,6 @@ bash launch_linux.sh
 
 ---
 
-## 🎙️ Always-On Voice Assistant ("Hey Strike")
-PocketStrike AI features a background voice assistant that allows phone-wide, hands-free interaction:
-
-* **Background Wake-Word Listener**: Simply say **"Hey Strike"**, *"Strike"*, or *"Hey Pocket Strike"* while watching movies, playing games, or using any app on your phone.
-* **Auto Tool Execution & Speech Response**: The AI processes your spoken query, executes system/network/automation tools, and speaks the answer aloud using Android Text-To-Speech (`termux-tts-speak`).
-* **Heads-Up Screen Banners**: Displays a lockscreen / notification card with the response directly over your active app.
-* **Web UI Voice Mode**: Tap the glowing mic button in the top-right header of the Web UI to enable continuous hands-free voice mode with automatic browser SpeechSynthesis read-back.
-
----
-
 ## 🔌 Model Context Protocol (MCP) Integration
 PocketStrike AI natively supports the **Model Context Protocol (MCP)** using the HTTP/SSE (Server-Sent Events) transport. This turns your Termux AI agent into an MCP Client, enabling it to dynamically load, query, and run tools hosted on remote servers (e.g., your PC, local network, or cloud).
 
@@ -168,6 +138,36 @@ PocketStrike AI natively supports the **Model Context Protocol (MCP)** using the
    * Enter the **SSE Endpoint URL** (e.g., `http://192.168.11.131:8000/sse`).
 4. **Automatic Handshake**: PocketStrike AI will establish an active SSE stream connection, perform the official **initialize/initialized protocol handshake**, fetch the available tools, and automatically inject the remote tool schemas directly into the AI's instruction set.
 5. **Real-time Execution**: When the AI runs a remote tool, the request is wrapped in a standard JSON-RPC 2.0 structure, POSTed over the Wi-Fi network, and the result is returned live to the chat thread!
+
+---
+
+## 🎙️ Always-On Voice Assistant ("Hey Strike")
+PocketStrike AI features a background voice assistant that allows phone-wide, hands-free interaction:
+
+* **Background Wake-Word Listener**: Simply say **"Hey Strike"**, *"Strike"*, or *"Hey Pocket Strike"* while watching movies, playing games, or using any app on your phone.
+* **Auto Tool Execution & Speech Response**: The AI processes your spoken query, executes system/network/automation tools, and speaks the answer aloud using Android Text-To-Speech (`termux-tts-speak`).
+* **Heads-Up Screen Banners**: Displays a lockscreen / notification card with the response directly over your active app.
+* **Web UI Voice Mode**: Tap the glowing mic button in the top-right header of the Web UI to enable continuous hands-free voice mode with automatic browser SpeechSynthesis read-back.
+
+---
+
+## ✨ Features
+
+*   **Always-On Background Voice Assistant ("Hey Strike")**: Hands-free background voice listener daemon running in Termux that detects wake word *"Hey Strike"* while watching movies or using other apps, processes commands via the ReAct agent, and speaks answers back aloud via Android TTS & lockscreen notification cards. Also features Web Speech API Voice Mode in the Web UI.
+*   **Unified Chat History Engine**: The agent maintains a single unified mind across platforms. Messages sent via Telegram are instantly visible in the Web interface, and vice-versa, synchronizing context in real-time.
+*   **60-Message sliding window**: Supports deep conversation tracking by passing up to the last 60 message states to the LLM API, while preserving complete logs on local storage.
+*   **Self-Evolving Long-Term Memory**: The AI dynamically updates `agent/user.md`, `agent/memory.md`, and `agent/agent.md` files via background conversation reflections. These files are re-injecting on every turn to adapt to your preferences.
+*   **Active Threat Intrusion Sentinel**: Runs a background daemon thread that checks `/proc/net/arp` and network metrics for active ARP Spoofing/MITM threats, automatically sending system lockscreen banners (via `termux-api` notification), text-to-speech warnings, and Telegram bot alerts.
+*   **Rich Media Chat Previews**: The Web UI automatically renders dynamic, cached-busted images (`<img>`) and video players (`<video>`) inside chat bubbles whenever workspace screenshots, photos, or recordings are generated or mentioned.
+*   **Self-Dependency Doctor & Auto-Installer**: Runs a full environment diagnostic (`check_system_health`) checking for required CLI utilities and Python modules, and can automatically execute non-interactive `pkg install` and `pip install` repairs if requested.
+*   **Persistent Background Scheduler**: A daemon thread checks for scheduled reminders or recurring cron intervals (e.g. *"remind me to blink my eyes every 1 minute"*) and alerts you locally or via Telegram.
+*   **Audio Beep & System Fallback**: If the device lacks Termux:API, the scheduler utilizes the ASCII Bell code (`\a`) to beep/vibrate Termux natively, and dynamically redirects screen alerts to Telegram.
+*   **Robust ADB/Shizuku execution**: Features parameter-safe parsing and automatic standard ADB fallbacks if the Shizuku emulator binder (`rish`) becomes unauthorized or goes offline.
+*   **Web & Network Security Auditors**: Built-in scanners to detect active Wi-Fi Man-in-the-Middle (ARP Spoofing) attacks, audit VPN connection leaks, and evaluate SSL certificates and HTTP security headers.
+*   **Stateful persistent Terminal Session**: Maintains directory changes (`cd`) and environmental variables across multiple command runs, operating inside a persistent background shell.
+*   **Subnet-Wide Network Sweeps**: Scans class C subnets (1-254) in less than 3 seconds using 80 parallel workers, resolving device hostnames automatically.
+*   **Parallel Port Scanner**: Checks up to 100 ports concurrently on local hosts using thread pools, automatically identifying active service names (SSH, HTTP, Database, etc.).
+*   **Deep RAG Web Search**: Scrapes DuckDuckGo HTML and automatically fetches the actual main body text of the top 2 web pages in the background. It feeds this text directly to the AI, bypassing knowledge cutoff limitations.
 
 ---
 
