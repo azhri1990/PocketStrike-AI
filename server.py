@@ -2296,6 +2296,12 @@ def speak_text(text):
             if res.returncode == 0:
                 return "Success: Speaking text via Termux TTS."
             return f"Error triggering speech: {res.stderr}"
+        elif shutil.which("say"):
+            # macOS native TTS
+            res = subprocess.run(["say", text], capture_output=True, text=True, timeout=8)
+            if res.returncode == 0:
+                return "Success: Speaking text via macOS native say command."
+            return f"Error triggering macOS speech: {res.stderr}"
         elif shutil.which("spd-say"):
             res = subprocess.run(["spd-say", text], capture_output=True, text=True, timeout=8)
             if res.returncode == 0:
@@ -2308,7 +2314,7 @@ def speak_text(text):
                 return f"Success: Speaking text via Linux {cmd}."
             return f"Error triggering espeak speech: {res.stderr}"
         else:
-            return "Notice: No Text-To-Speech engine (termux-tts-speak, spd-say, espeak) found on host."
+            return "Notice: No Text-To-Speech engine found on host."
     except Exception as e:
         return f"Error executing speak tool: {str(e)}"
 
@@ -2801,6 +2807,15 @@ def send_android_notification(title, message):
             if res.returncode == 0:
                 return "Success: Notification sent via Termux API."
             return f"Error: Command exited with code {res.returncode}. Output: {res.stderr}"
+        elif shutil.which("osascript"):
+            # macOS native notification
+            clean_title = title.replace('"', '\\"')
+            clean_msg = message.replace('"', '\\"')
+            script = f'display notification "{clean_msg}" with title "{clean_title}"'
+            res = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=5)
+            if res.returncode == 0:
+                return "Success: Notification sent via macOS System Notification."
+            return f"Error sending macOS notification: {res.stderr}"
         elif shutil.which("notify-send"):
             cmd = ["notify-send", title, message]
             res = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
@@ -5382,19 +5397,26 @@ def chat():
 @app.route('/api/status', methods=['GET'])
 def get_status():
     import shutil
+    import sys
+    is_mac = sys.platform == "darwin"
     is_termux = shutil.which("pkg") is not None or os.path.exists("/data/data/com.termux")
-    os_type = "termux" if is_termux else "linux"
+    os_type = "mac" if is_mac else ("termux" if is_termux else "linux")
     
-    os_name = "Android / Termux" if is_termux else "Linux System"
-    if not is_termux and os.path.exists("/etc/os-release"):
-        try:
-            with open("/etc/os-release") as f:
-                for line in f:
-                    if line.startswith("PRETTY_NAME="):
-                        os_name = line.split("=")[1].strip().strip('"')
-                        break
-        except Exception:
-            pass
+    if is_mac:
+        os_name = "macOS"
+    elif is_termux:
+        os_name = "Android / Termux"
+    else:
+        os_name = "Linux System"
+        if os.path.exists("/etc/os-release"):
+            try:
+                with open("/etc/os-release") as f:
+                    for line in f:
+                        if line.startswith("PRETTY_NAME="):
+                            os_name = line.split("=")[1].strip().strip('"')
+                            break
+            except Exception:
+                pass
 
     status = {
         "provider": config.get("provider_name", "None"),

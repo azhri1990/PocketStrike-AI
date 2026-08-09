@@ -117,8 +117,26 @@ Run the Linux visual launcher:
 bash launch_linux.sh
 ```
 1. Select option `1` to run the **Setup Wizard** (Configure AI keys, model provider, and Telegram bot options).
+---
+
+## 🍎 Installation & Setup on macOS (Apple Silicon & Intel)
+
+PocketStrike AI runs natively on macOS (macOS 12+ / Sequoia / Sonoma / Ventura) using Homebrew:
+
+### Step 1: Run the macOS Installer (One-Liner)
+Open Terminal on your Mac and run:
+```bash
+git clone https://github.com/AbuZar-Ansarii/PocketStrike-AI.git && cd PocketStrike-AI && sed -i '' 's/\r$//' install_mac.sh && bash install_mac.sh
+```
+
+### Step 2: Launch the macOS Dashboard
+Run the macOS visual launcher:
+```bash
+bash launch_mac.sh
+```
+1. Select option `1` to run the **Setup Wizard**.
 2. Select option `2` to start the **PocketStrike AI Server**.
-3. Open `http://localhost:5000` in your web browser to start using your AI agent!
+3. Open `http://localhost:5000` in Safari or Chrome!
 
 ---
 

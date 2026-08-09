@@ -233,6 +233,39 @@ async function fetchBackendStatus() {
                 tgBadge.className = 'status-value-tg disabled';
             }
 
+            // If running on macOS, render macOS Apple Cyber logo and system badges
+            if (data.os_type === "mac") {
+                document.body.classList.add("os-mac");
+                const subNote = document.getElementById("welcomeSubnote");
+                if (subNote) subNote.textContent = `PocketstrikeAI is online and running natively on ${data.os_name || 'macOS'}.`;
+                const footerNote = document.querySelector(".footer-note");
+                if (footerNote) footerNote.textContent = `PocketstrikeAI v1.0 • Running natively on ${data.os_name || 'macOS'}`;
+                
+                const macSvg = `<svg class="logo-icon mac-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <g stroke="url(#macStroke)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none">
+                        <path d="M18.71 19.5C17.88 20.74 17 21.95 15.66 21.97C14.32 22 13.89 21.18 12.37 21.18C10.84 21.18 10.37 21.95 9.1 21.97C7.79 22 6.85 20.68 6.01 19.47C4.29 16.98 2.98 12.44 4.75 9.37C5.63 7.84 7.2 6.87 8.91 6.85C10.2 6.83 11.43 7.71 12.22 7.71C13.01 7.71 14.5 6.63 16.06 6.8C16.71 6.83 18.53 7.07 19.68 8.75C19.59 8.81 17.58 9.98 17.6 12.38C17.63 15.26 20.13 16.22 20.16 16.23C20.13 16.32 19.74 17.66 18.71 19.5Z" fill="url(#macGrad)"/>
+                        <path d="M15.97 3.5C15.22 4.41 14.07 5.16 12.92 5.07C12.8 3.96 13.34 2.82 14.03 2C14.77 1.13 15.99 0.42 17.06 0.33C17.2 1.48 16.66 2.62 15.97 3.5Z" fill="url(#macStroke)"/>
+                    </g>
+                    <defs>
+                        <linearGradient id="macGrad" x1="4" y1="2" x2="20" y2="22" gradientUnits="userSpaceOnUse">
+                            <stop stop-color="#3B82F6" />
+                            <stop offset="0.5" stop-color="#8B5CF6" />
+                            <stop offset="1" stop-color="#EC4899" />
+                        </linearGradient>
+                        <linearGradient id="macStroke" x1="4" y1="2" x2="20" y2="22" gradientUnits="userSpaceOnUse">
+                            <stop stop-color="#00FFCC" />
+                            <stop offset="1" stop-color="#3B82F6" />
+                        </linearGradient>
+                    </defs>
+                </svg>`;
+
+                const welcomeMacSvg = macSvg.replace('class="logo-icon mac-icon"', 'class="welcome-logo-icon mac-icon"');
+                const sidebarLogo = document.querySelector(".logo-container .logo-icon");
+                if (sidebarLogo) sidebarLogo.outerHTML = macSvg;
+                const welcomeLogo = document.querySelector(".glowing-logo .welcome-logo-icon");
+                if (welcomeLogo) welcomeLogo.outerHTML = welcomeMacSvg;
+            }
+
             // If running on Linux, render Cyber Dragon logo and Linux system badges
             if (data.os_type === "linux") {
                 document.body.classList.add("os-linux");
