@@ -290,6 +290,257 @@ Respond with ONLY the JSON block. Do not include markdown code block formatting 
     except Exception as e:
         print(f"⚠️ [Self-Evolution Error] failed to auto-evolve memory: {str(e)}")
 
+def analyze_apk_manifest(apk_path):
+    """Parses Android APK manifest and zip archive to extract permissions, launcher components, and security flags."""
+    try:
+        import zipfile
+        full_path = sanitize_workspace_path(apk_path) if not os.path.isabs(apk_path) else apk_path
+        if not os.path.exists(full_path):
+            return f"Error: APK file '{apk_path}' not found."
+        
+        if not zipfile.is_zipfile(full_path):
+            return f"Error: '{apk_path}' is not a valid APK/ZIP archive."
+
+        perms = []
+        activities = []
+        services = []
+        receivers = []
+
+        with zipfile.ZipFile(full_path, 'r') as z:
+            file_list = z.namelist()
+            has_dex = any(f.endswith('.dex') for f in file_list)
+            has_so = any(f.endswith('.so') for f in file_list)
+            
+            manifest_str = ""
+            if "AndroidManifest.xml" in file_list:
+                manifest_data = z.read("AndroidManifest.xml")
+                import re
+                strings = re.findall(rb'[\x20-\x7E]{4,}', manifest_data)
+                manifest_str = "\n".join(s.decode('ascii', errors='ignore') for s in strings)
+                
+                for s in strings:
+                    s_text = s.decode('ascii', errors='ignore')
+                    if "android.permission." in s_text:
+                        perms.append(s_text.strip())
+                    elif "Activity" in s_text or "Service" in s_text or "Receiver" in s_text:
+                        if "." in s_text and len(s_text) < 100:
+                            if "Activity" in s_text: activities.append(s_text)
+                            elif "Service" in s_text: services.append(s_text)
+                            elif "Receiver" in s_text: receivers.append(s_text)
+
+        perms = sorted(list(set(perms)))
+        dangerous_keywords = ["CAMERA", "RECORD_AUDIO", "READ_SMS", "SEND_SMS", "RECEIVE_SMS", "ACCESS_FINE_LOCATION", "READ_CONTACTS", "WRITE_EXTERNAL_STORAGE", "SYSTEM_ALERT_WINDOW", "INSTALL_PACKAGES"]
+        dangerous_found = [p for p in perms if any(dk in p for dk in dangerous_keywords)]
+
+        report = [
+            f"📦 APK Audit Report for: {os.path.basename(full_path)}",
+            f"Path: {full_path}",
+            f"Contains Compiled DEX: {'Yes' if has_dex else 'No'}",
+            f"Contains Native (.so) Libraries: {'Yes' if has_so else 'No'}",
+            f"\n🔑 Permissions Requested ({len(perms)} total):",
+            "  - " + "\n  - ".join(perms) if perms else "  - None detected in binary strings.",
+            f"\n⚠️ Dangerous Security Permissions ({len(dangerous_found)}):",
+            "  - " + "\n  - ".join(dangerous_found) if dangerous_found else "  - None identified.",
+            f"\n🧩 Detected Components:",
+            f"  - Activities: {len(set(activities))}",
+            f"  - Services: {len(set(services))}",
+            f"  - Broadcast Receivers: {len(set(receivers))}"
+        ]
+        return "\n".join(report)
+    except Exception as e:
+        return f"Error analyzing APK manifest: {str(e)}"
+
+def check_subdomain_takeover(domain):
+    """Scans domain/subdomain CNAME records for vulnerable dangling cloud pointers (GitHub Pages, S3, Heroku, Azure, etc.)."""
+    try:
+        domain = domain.strip().lower().replace("http://", "").replace("https://", "").split("/")[0]
+        cname_res = dns_lookup(domain, record_type="CNAME")
+        
+        takeover_signatures = {
+            "github.io": "GitHub Pages",
+            "s3.amazonaws.com": "AWS S3 Bucket",
+            "herokuapp.com": "Heroku App",
+            "azurewebsites.net": "Azure Web App",
+            "surge.sh": "Surge.sh",
+            "myshopify.com": "Shopify Store",
+            "wordpress.com": "WordPress",
+            "ghost.io": "Ghost.io",
+            "pantheonsite.io": "Pantheon",
+            "fastly.net": "Fastly CDN",
+            "cloudfront.net": "AWS CloudFront"
+        }
+
+        matched_signatures = []
+        cname_target = ""
+        if "Data:" in cname_res:
+            for line in cname_res.splitlines():
+                if "Data:" in line:
+                    cname_target = line.split("Data:")[1].strip()
+                    for sig, provider in takeover_signatures.items():
+                        if sig in cname_target.lower():
+                            matched_signatures.append((sig, provider))
+
+        status_msg = []
+        status_msg.append(f"🎯 Subdomain Takeover Audit: {domain}")
+        status_msg.append(f"CNAME Lookup Output:\n{cname_res}")
+        
+        if matched_signatures:
+            status_msg.append("\n⚠️ POTENTIAL DANGLING POINTER DETECTED!")
+            for sig, provider in matched_signatures:
+                status_msg.append(f"  - Points to cloud provider: {provider} ({cname_target})")
+            status_msg.append("  - Action: Verify if the target cloud resource is active or available for unclaimed registration.")
+        else:
+            status_msg.append("\n✅ No common dangling cloud provider CNAME signatures identified.")
+
+        return "\n".join(status_msg)
+    except Exception as e:
+        return f"Error checking subdomain takeover: {str(e)}"
+
+def generate_hash_checksum(file_path_or_text, algo="sha256"):
+    """Generates MD5, SHA1, SHA256, and SHA512 hashes for a workspace file or text string."""
+    try:
+        import hashlib
+        target_path = sanitize_workspace_path(file_path_or_text) if not os.path.isabs(file_path_or_text) else file_path_or_text
+        
+        if os.path.exists(target_path) and os.path.isfile(target_path):
+            with open(target_path, "rb") as f:
+                content = f.read()
+            source_desc = f"File: {os.path.basename(target_path)} ({len(content)} bytes)"
+        else:
+            content = file_path_or_text.encode('utf-8')
+            source_desc = f"String Input ({len(content)} bytes)"
+
+        md5_hash = hashlib.md5(content).hexdigest()
+        sha1_hash = hashlib.sha1(content).hexdigest()
+        sha256_hash = hashlib.sha256(content).hexdigest()
+        sha512_hash = hashlib.sha512(content).hexdigest()
+
+        return (f"🔐 Hash Checksum Results:\n"
+                f"Source: {source_desc}\n"
+                f"MD5:    {md5_hash}\n"
+                f"SHA1:   {sha1_hash}\n"
+                f"SHA256: {sha256_hash}\n"
+                f"SHA512: {sha512_hash}")
+    except Exception as e:
+        return f"Error calculating hash checksum: {str(e)}"
+
+def analyze_pcap_capture(pcap_path, limit=20):
+    """Analyzes network packet capture (.pcap/.pcapng) files for HTTP plain-text headers, logins, DNS queries, and IP traffic."""
+    try:
+        full_path = sanitize_workspace_path(pcap_path) if not os.path.isabs(pcap_path) else pcap_path
+        if not os.path.exists(full_path):
+            return f"Error: PCAP file '{pcap_path}' not found."
+
+        import re
+        with open(full_path, "rb") as f:
+            raw_data = f.read(5 * 1024 * 1024)
+
+        printable_strings = re.findall(rb'[\x20-\x7E]{4,}', raw_data)
+        strings_text = [s.decode('ascii', errors='ignore') for s in printable_strings]
+
+        http_requests = [s for s in strings_text if any(s.startswith(m) for m in ["GET ", "POST ", "PUT ", "DELETE ", "HTTP/"])]
+        dns_queries = [s for s in strings_text if ".com" in s or ".org" in s or ".net" in s or ".io" in s]
+        auth_headers = [s for s in strings_text if "Authorization:" in s or "Bearer " in s or "password" in s.lower() or "user=" in s.lower()]
+        ips = list(set(re.findall(r'\b(?:\d{1,3}\.){3}\d{1,3}\b', "\n".join(strings_text))))
+
+        report = [
+            f"📡 PCAP Analysis Summary for: {os.path.basename(full_path)}",
+            f"Extracted Unique IP Addresses ({len(ips)}):",
+            "  " + ", ".join(ips[:15]) if ips else "  None identified",
+            f"\n🌐 HTTP Requests & Method Lines ({len(http_requests)}):",
+            "  - " + "\n  - ".join(http_requests[:limit]) if http_requests else "  No plain-text HTTP methods found.",
+            f"\n🔑 Credentials & Authorization Indicators ({len(auth_headers)}):",
+            "  - " + "\n  - ".join(auth_headers[:10]) if auth_headers else "  No plain-text credential headers detected.",
+            f"\n🔍 DNS Domain References Found ({len(dns_queries)}):",
+            "  - " + "\n  - ".join(list(set(dns_queries))[:15]) if dns_queries else "  None detected."
+        ]
+        return "\n".join(report)
+    except Exception as e:
+        return f"Error analyzing PCAP capture: {str(e)}"
+
+def jwt_decoder_analyzer(token):
+    """Decodes JSON Web Token (JWT) structure, claims, algorithm, and checks for common security misconfigurations."""
+    try:
+        import base64, json
+        token = token.strip()
+        parts = token.split(".")
+        if len(parts) != 3:
+            return "Error: Invalid JWT format. A valid JWT must consist of 3 dot-separated base64 parts (Header.Payload.Signature)."
+
+        def b64_decode(data):
+            padding = '=' * (4 - len(data) % 4)
+            return base64.urlsafe_b64decode(data + padding).decode('utf-8')
+
+        header_str = b64_decode(parts[0])
+        payload_str = b64_decode(parts[1])
+
+        header = json.loads(header_str)
+        payload = json.loads(payload_str)
+
+        alg = header.get("alg", "None")
+        typ = header.get("typ", "JWT")
+
+        warnings = []
+        if alg.lower() == "none":
+            warnings.append("🚨 CRITICAL: Token algorithm set to 'none' (Signature validation bypass vulnerability!).")
+        elif alg in ["HS256", "HS384", "HS512"]:
+            warnings.append("⚠️ WARNING: Uses symmetric key algorithm (HS256/384/512). Vulnerable to brute-force if secret key is weak.")
+
+        import time
+        exp = payload.get("exp")
+        if exp:
+            curr_time = time.time()
+            if curr_time > exp:
+                warnings.append(f"⏰ EXPIRED: Token expired at timestamp {exp} (Current time: {int(curr_time)}).")
+            else:
+                warnings.append(f"✅ VALID EXPIRATION: Expires at timestamp {exp} (Remaining: {int(exp - curr_time)}s).")
+        else:
+            warnings.append("⚠️ MISSING EXP: Token has no expiration ('exp') claim specified.")
+
+        output = [
+            "🔑 JWT Decoder & Security Analysis",
+            "\nHeader:",
+            json.dumps(header, indent=2),
+            "\nPayload:",
+            json.dumps(payload, indent=2),
+            "\nSecurity Warnings & Audit:",
+            "  - " + "\n  - ".join(warnings) if warnings else "  - No immediate security flags triggered."
+        ]
+        return "\n".join(output)
+    except Exception as e:
+        return f"Error decoding JWT token: {str(e)}"
+
+def system_process_monitor(filter_name=""):
+    """Monitors running system processes in Termux/Android, listing PID, user, CPU%, memory, and command lines."""
+    try:
+        import subprocess
+        res = subprocess.run(["ps", "aux"], capture_output=True, text=True, timeout=10)
+        if res.returncode != 0:
+            res = subprocess.run(["ps", "-ef"], capture_output=True, text=True, timeout=10)
+            
+        lines = res.stdout.strip().splitlines()
+        if not lines:
+            return "No running process information returned."
+
+        header = lines[0]
+        proc_list = lines[1:]
+
+        if filter_name:
+            proc_list = [line for line in proc_list if filter_name.lower() in line.lower()]
+
+        report = [
+            f"📊 System Process Monitor ({len(proc_list)} processes active" + (f", filtered by '{filter_name}'" if filter_name else "") + "):",
+            header,
+            "──────────────────────────────────────────────────────────────────────────"
+        ]
+        report.extend(proc_list[:40])
+        if len(proc_list) > 40:
+            report.append(f"... and {len(proc_list) - 40} more processes.")
+
+        return "\n".join(report)
+    except Exception as e:
+        return f"Error monitoring system processes: {str(e)}"
+
 def get_system_prompt():
     # Read user.md, memory.md, and agent.md for Hermes-style memory
     user_path = os.path.join(WORKSPACE_DIR, "agent", "user.md")
@@ -323,7 +574,7 @@ def get_system_prompt():
     # Load remote MCP tools
     mcp_conns = load_mcp_connections()
     mcp_tool_lines = []
-    tool_counter = 59
+    tool_counter = 65
     for conn in mcp_conns:
         server_name = conn.get("name")
         for t in conn.get("tools", []):
@@ -486,7 +737,19 @@ Available Tools:
 57. check_system_health(auto_install=False)
     Diagnoses local Termux dependencies (e.g. nmap, git, termux-api, adb) and python modules, and optionally installs missing requirements if auto_install=True. (runs via local shell).
 58. scan_nearby_signals()
-    Scans physical radio frequency signals for nearby Wi-Fi access points and Bluetooth beacons in range. Saves an audit report to the workspace as 'signal_scan_log.md'. Do not confuse this with local_network_scan() which scans active IP addresses on the connected subnet. (runs via local Termux-API or Shizuku).{mcp_tools_block}
+    Scans physical radio frequency signals for nearby Wi-Fi access points and Bluetooth beacons in range. Saves an audit report to the workspace as 'signal_scan_log.md'. Do not confuse this with local_network_scan() which scans active IP addresses on the connected subnet. (runs via local Termux-API or Shizuku).
+59. analyze_apk_manifest(apk_path)
+    Parses Android APK manifest and zip archive to extract permissions, launcher activities/services, and identify dangerous security permissions.
+60. check_subdomain_takeover(domain)
+    Scans domain CNAME records to detect vulnerable dangling cloud provider pointers (GitHub Pages, S3, Heroku, Azure, etc.).
+61. generate_hash_checksum(file_path_or_text, algo="sha256")
+    Calculates MD5, SHA1, SHA256, and SHA512 checksums for a workspace file or text string payload for integrity and malware analysis.
+62. analyze_pcap_capture(pcap_path, limit=20)
+    Parses network packet capture (.pcap/.pcapng) files for HTTP plain-text headers, logins, DNS queries, and IP traffic breakdowns.
+63. jwt_decoder_analyzer(token)
+    Decodes JSON Web Token (JWT) structure, claims, algorithm, and audits for security misconfigurations (e.g., 'none' algorithm vulnerabilities).
+64. system_process_monitor(filter_name="")
+    Monitors active processes running in Termux/Android, listing PID, user, CPU%, memory, and command lines.{mcp_tools_block}
 
 Instructions:
 - When a user asks you a question that requires a tool, output ONLY the tool call trigger. Do not include any prefix, suffix, or explanation in that turn.
@@ -3555,6 +3818,36 @@ def execute_local_tool(name, args_str):
             if not query:
                 return "Error: Missing required argument 'query'."
             return search_file_content(query, pattern)
+        elif name == "analyze_apk_manifest":
+            apk_path = kwargs.get("apk_path")
+            if not apk_path:
+                return "Error: Missing required argument 'apk_path'."
+            return analyze_apk_manifest(apk_path)
+        elif name == "check_subdomain_takeover":
+            domain = kwargs.get("domain")
+            if not domain:
+                return "Error: Missing required argument 'domain'."
+            return check_subdomain_takeover(domain)
+        elif name == "generate_hash_checksum":
+            file_path_or_text = kwargs.get("file_path_or_text")
+            algo = kwargs.get("algo", "sha256")
+            if not file_path_or_text:
+                return "Error: Missing required argument 'file_path_or_text'."
+            return generate_hash_checksum(file_path_or_text, algo)
+        elif name == "analyze_pcap_capture":
+            pcap_path = kwargs.get("pcap_path")
+            limit = kwargs.get("limit", 20)
+            if not pcap_path:
+                return "Error: Missing required argument 'pcap_path'."
+            return analyze_pcap_capture(pcap_path, limit)
+        elif name == "jwt_decoder_analyzer":
+            token = kwargs.get("token")
+            if not token:
+                return "Error: Missing required argument 'token'."
+            return jwt_decoder_analyzer(token)
+        elif name == "system_process_monitor":
+            filter_name = kwargs.get("filter_name", "")
+            return system_process_monitor(filter_name)
         else:
             # Check if it's an MCP tool
             mcp_conns = load_mcp_connections()

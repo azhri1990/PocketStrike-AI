@@ -113,11 +113,11 @@ def main():
 
     # 3. Model selection based on provider
     models_dict = {
-        "gemini": ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.0-pro"],
-        "openai": ["gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"],
-        "anthropic": ["claude-3-5-sonnet-20240620", "claude-3-opus-20240229", "claude-3-haiku-20240307"],
-        "ollama": ["llama3", "phi3", "mistral", "gemma", "gemma4:31b-cloud", "gemini-3-flash-preview:cloud"],
-        "openrouter": ["meta-llama/llama-3-8b-instruct:free", "mistralai/mistral-7b-instruct:free", "google/gemma-2-9b-it:free"],
+        "gemini": ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"],
+        "openai": ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"],
+        "anthropic": ["claude-3-7-sonnet-20250219", "claude-3-5-sonnet-20241022", "claude-3-opus-20240229", "claude-3-haiku-20240307"],
+        "ollama": ["llama3", "deepseek-r1", "deepseek-v3", "phi3", "mistral", "gemma", "gemma4:31b-cloud"],
+        "openrouter": ["deepseek/deepseek-r1:free", "meta-llama/llama-3.3-70b-instruct:free", "google/gemma-2-9b-it:free"],
         "opencode": ["gpt-5.2", "gpt-5.1-codex", "claude-opus-4.5", "claude-sonnet-4.5", "gemini-3-pro"],
         "opencode_zen": ["big-pickle", "mimo", "deepseek-v3", "deepseek-v4-flash-free"],
         "custom": []
