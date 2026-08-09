@@ -121,6 +121,27 @@ Choose option `2` from the launcher. Open the **Local URL** in your phone's brow
 
 ---
 
+## 🐧 Installation & Setup on Linux (Debian / Ubuntu / Kali / Mint)
+
+PocketStrike AI also runs natively on standard Linux desktop and server distributions using `apt` package manager:
+
+### Step 1: Run the Linux Installer (One-Liner)
+Open your terminal on Ubuntu, Debian, Kali, or Mint and run:
+```bash
+git clone https://github.com/AbuZar-Ansarii/PocketStrike-AI.git && cd PocketStrike-AI && sed -i 's/\r$//' install_linux.sh && bash install_linux.sh
+```
+
+### Step 2: Launch the Linux Dashboard
+Run the Linux visual launcher:
+```bash
+bash launch_linux.sh
+```
+1. Select option `1` to run the **Setup Wizard** (Configure AI keys, model provider, and Telegram bot options).
+2. Select option `2` to start the **PocketStrike AI Server**.
+3. Open `http://localhost:5000` in your web browser to start using your AI agent!
+
+---
+
 ## 🎙️ Always-On Voice Assistant ("Hey Strike")
 PocketStrike AI features a background voice assistant that allows phone-wide, hands-free interaction:
 

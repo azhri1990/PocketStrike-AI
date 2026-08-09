@@ -1921,19 +1921,25 @@ def check_system_health(auto_install=False):
     report = []
     missing_packages = []
     
-    # 1. Check CLI Binaries
+    pkg_mgr = "pkg" if shutil.which("pkg") else ("apt" if shutil.which("apt") or shutil.which("apt-get") else ("dnf" if shutil.which("dnf") else ("pacman" if shutil.which("pacman") else "unknown")))
+
     cli_tools = {
-        "termux-api": "termux-api",
         "nmap": "nmap",
         "git": "git",
         "dig": "dnsutils",
         "netstat": "net-tools",
         "ip": "iproute2",
         "traceroute": "traceroute",
-        "adb": "adb"
+        "curl": "curl"
     }
+    if pkg_mgr == "pkg":
+        cli_tools["termux-api"] = "termux-api"
+        cli_tools["adb"] = "android-tools"
+    else:
+        cli_tools["notify-send"] = "libnotify-bin"
+        cli_tools["spd-say"] = "speech-dispatcher"
     
-    report.append("=== CLI Dependencies Audit ===")
+    report.append(f"=== CLI Dependencies Audit (Package Manager: {pkg_mgr}) ===")
     for tool, pkg in cli_tools.items():
         path = shutil.which(tool)
         status = "✅ Installed" if path else "❌ Missing"
@@ -1941,7 +1947,6 @@ def check_system_health(auto_install=False):
         if not path:
             missing_packages.append(pkg)
             
-    # 2. Check Python Packages
     py_packages = {
         "flask": "Flask",
         "requests": "requests",
@@ -1960,27 +1965,36 @@ def check_system_health(auto_install=False):
             missing_pip.append(pip_name)
         report.append(f"- {mod}: {status}")
 
-    # 3. Handle Auto-Installation
     if missing_packages or missing_pip:
         if auto_install:
             report.append("\n🛠️ [Auto-Installer] Starting installation of missing dependencies...")
             
-            # Install CLI dependencies
             for pkg in missing_packages:
-                report.append(f"- Running: pkg install -y {pkg}")
-                res = subprocess.run(["pkg", "install", "-y", pkg], capture_output=True, text=True, timeout=90)
-                if res.returncode == 0:
-                    report.append(f"  └─ Success: Installed {pkg}")
+                if pkg_mgr == "pkg":
+                    cmd = ["pkg", "install", "-y", pkg]
+                elif pkg_mgr == "apt":
+                    cmd = ["sudo", "apt-get", "install", "-y", pkg]
+                elif pkg_mgr == "dnf":
+                    cmd = ["sudo", "dnf", "install", "-y", pkg]
+                elif pkg_mgr == "pacman":
+                    cmd = ["sudo", "pacman", "-S", "--noconfirm", pkg]
                 else:
-                    report.append(f"  └─ Failed: {res.stderr.strip()}")
+                    cmd = []
+                
+                if cmd:
+                    report.append(f"- Running: {' '.join(cmd)}")
+                    res = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+                    if res.returncode == 0:
+                        report.append(f"  └─ Success: Installed {pkg}")
+                    else:
+                        report.append(f"  └─ Failed: {res.stderr.strip()}")
             
-            # Install Python dependencies
             for pip_name in missing_pip:
                 report.append(f"- Running: pip install {pip_name}")
-                if pip_name == "opencv-python":
+                if pip_name == "opencv-python" and pkg_mgr == "pkg":
                     res = subprocess.run(["pkg", "install", "-y", "opencv"], capture_output=True, text=True, timeout=120)
                 else:
-                    res = subprocess.run([sys.executable, "-m", "pip", "install", pip_name], capture_output=True, text=True, timeout=90)
+                    res = subprocess.run([sys.executable, "-m", "pip", "install", pip_name], capture_output=True, text=True, timeout=120)
                 if res.returncode == 0:
                     report.append(f"  └─ Success: Installed {pip_name}")
                 else:
@@ -2244,12 +2258,27 @@ def scan_wifi_networks():
 def speak_text(text):
     try:
         import subprocess
-        res = subprocess.run(["termux-tts-speak", text], capture_output=True, text=True, timeout=8)
-        if res.returncode == 0:
-            return "Success: Speaking text."
-        return f"Error triggering speech: {res.stderr}"
+        import shutil
+        if shutil.which("termux-tts-speak"):
+            res = subprocess.run(["termux-tts-speak", text], capture_output=True, text=True, timeout=8)
+            if res.returncode == 0:
+                return "Success: Speaking text via Termux TTS."
+            return f"Error triggering speech: {res.stderr}"
+        elif shutil.which("spd-say"):
+            res = subprocess.run(["spd-say", text], capture_output=True, text=True, timeout=8)
+            if res.returncode == 0:
+                return "Success: Speaking text via Linux spd-say."
+            return f"Error triggering spd-say speech: {res.stderr}"
+        elif shutil.which("espeak-ng") or shutil.which("espeak"):
+            cmd = "espeak-ng" if shutil.which("espeak-ng") else "espeak"
+            res = subprocess.run([cmd, text], capture_output=True, text=True, timeout=8)
+            if res.returncode == 0:
+                return f"Success: Speaking text via Linux {cmd}."
+            return f"Error triggering espeak speech: {res.stderr}"
+        else:
+            return "Notice: No Text-To-Speech engine (termux-tts-speak, spd-say, espeak) found on host."
     except Exception as e:
-        return f"Error executing speak tool: {str(e)} (Ensure Termux:API is installed)"
+        return f"Error executing speak tool: {str(e)}"
 
 # =======================================================
 # LOCAL ADB AUTOMATION CONTROLLER (SCREEN CONTROL)
@@ -2733,24 +2762,40 @@ def list_local_listeners():
 def send_android_notification(title, message):
     try:
         import subprocess
-        cmd = ["termux-notification", "-t", title, "-c", message]
-        res = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
-        if res.returncode == 0:
-            return "Success: Notification sent."
-        return f"Error: Command exited with code {res.returncode}. Output: {res.stderr}"
+        import shutil
+        if shutil.which("termux-notification"):
+            cmd = ["termux-notification", "-t", title, "-c", message]
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            if res.returncode == 0:
+                return "Success: Notification sent via Termux API."
+            return f"Error: Command exited with code {res.returncode}. Output: {res.stderr}"
+        elif shutil.which("notify-send"):
+            cmd = ["notify-send", title, message]
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            if res.returncode == 0:
+                return "Success: Notification sent via Linux notify-send."
+            return f"Error sending Linux notification: {res.stderr}"
+        else:
+            print(f"🔔 [Notification Banner] {title}: {message}")
+            return f"Success: Notification logged ({title}: {message})."
     except Exception as e:
-        return f"Error triggering notification: {str(e)} (Ensure Termux:API is installed)"
+        return f"Error triggering notification: {str(e)}"
 
 def vibrate_device(duration_ms=500):
     try:
         import subprocess
-        cmd = ["termux-vibrate", "-d", str(duration_ms)]
-        res = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
-        if res.returncode == 0:
-            return f"Success: Device vibrated for {duration_ms}ms."
-        return f"Error: Command exited with code {res.returncode}. Output: {res.stderr}"
+        import shutil
+        if shutil.which("termux-vibrate"):
+            cmd = ["termux-vibrate", "-d", str(duration_ms)]
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            if res.returncode == 0:
+                return f"Success: Device vibrated for {duration_ms}ms."
+            return f"Error: Command exited with code {res.returncode}. Output: {res.stderr}"
+        else:
+            send_android_notification("PocketStrike Alert", "Vibration Alert Triggered")
+            return f"Notice: Physical vibration motor is specific to mobile devices. Triggered desktop notification alert on Linux."
     except Exception as e:
-        return f"Error vibrating device: {str(e)} (Ensure Termux:API is installed)"
+        return f"Error vibrating device: {str(e)}"
 
 def search_files(pattern):
     try:
