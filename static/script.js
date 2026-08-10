@@ -1281,6 +1281,7 @@ function speakTextResponse(text) {
 }
 
 let speechSilenceTimer = null;
+let isVoiceSending = false;
 
 function initVoiceAssistant() {
     if (!voiceBtn) return;
@@ -1293,7 +1294,9 @@ function initVoiceAssistant() {
     }
 
     speechRecognitionObj = new SpeechRecognition();
-    speechRecognitionObj.continuous = true;
+    // Single Utterance Mode (Google Assistant / Siri Standard):
+    // continuous = false captures exactly ONE complete user command without word duplication
+    speechRecognitionObj.continuous = false;
     speechRecognitionObj.interimResults = true;
     speechRecognitionObj.lang = 'en-US';
 
@@ -1307,18 +1310,19 @@ function initVoiceAssistant() {
     });
 
     speechRecognitionObj.onresult = (event) => {
-        // Reconstruct the clean full transcript directly from event.results (prevents word duplication)
-        let fullTranscript = '';
-        let isLastResultFinal = false;
+        if (isVoiceSending) return;
+
+        let transcript = '';
+        let isFinal = false;
 
         for (let i = 0; i < event.results.length; ++i) {
-            fullTranscript += event.results[i][0].transcript + ' ';
-            if (i === event.results.length - 1 && event.results[i].isFinal) {
-                isLastResultFinal = true;
+            transcript += event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+                isFinal = true;
             }
         }
 
-        const rawText = fullTranscript.trim();
+        const rawText = transcript.trim();
         if (!rawText) return;
 
         const lowerText = rawText.toLowerCase();
@@ -1337,24 +1341,13 @@ function initVoiceAssistant() {
                 chatInput.value = cleanPrompt;
                 autoGrowInput();
 
-                // Reset silence timer on every new speech event
                 if (speechSilenceTimer) clearTimeout(speechSilenceTimer);
 
-                // Google Assistant Silence Detection: 1.0s if final phrase boundary reached, 1.4s for pause in continuous speech
-                const silenceDelay = isLastResultFinal ? 1000 : 1400;
+                // Google Assistant VAD: 600ms if browser marks phrase final, 1.2s for silence pause
+                const silenceDelay = isFinal ? 600 : 1200;
 
                 speechSilenceTimer = setTimeout(() => {
-                    const promptToSend = chatInput.value.trim();
-                    if (promptToSend.length > 1 && !isGenerating) {
-                        console.log("🎙️ Google Assistant Style - Voice Prompt Submitted:", promptToSend);
-                        
-                        // Restart recognition session to clear event.results buffer and avoid duplication on next command
-                        try {
-                            speechRecognitionObj.stop();
-                        } catch (e) {}
-
-                        handleSend();
-                    }
+                    submitVoicePrompt();
                 }, silenceDelay);
             }
         }
@@ -1369,13 +1362,39 @@ function initVoiceAssistant() {
     };
 
     speechRecognitionObj.onend = () => {
-        // Auto restart if voice mode is still active
-        if (isVoiceActive) {
+        // Submit if speech ended and prompt exists
+        if (chatInput.value.trim().length > 1 && !isGenerating && !isVoiceSending && isVoiceActive) {
+            submitVoicePrompt();
+            return;
+        }
+
+        // Auto restart for next command if voice mode is active
+        if (isVoiceActive && !isGenerating && !isVoiceSending) {
             setTimeout(() => {
                 try { speechRecognitionObj.start(); } catch (e) {}
             }, 300);
         }
     };
+}
+
+function submitVoicePrompt() {
+    const promptToSend = chatInput.value.trim();
+    if (promptToSend.length > 1 && !isGenerating && !isVoiceSending) {
+        isVoiceSending = true;
+        console.log("🎙️ Voice Assistant - Submitting Complete Prompt:", promptToSend);
+        
+        if (speechSilenceTimer) clearTimeout(speechSilenceTimer);
+
+        try {
+            speechRecognitionObj.stop();
+        } catch (e) {}
+
+        handleSend();
+
+        setTimeout(() => {
+            isVoiceSending = false;
+        }, 1200);
+    }
 }
 
 function startVoiceListening() {
