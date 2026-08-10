@@ -1280,6 +1280,9 @@ function speakTextResponse(text) {
     }
 }
 
+let speechSilenceTimer = null;
+let accumulatedVoiceText = '';
+
 function initVoiceAssistant() {
     if (!voiceBtn) return;
     
@@ -1305,30 +1308,53 @@ function initVoiceAssistant() {
     });
 
     speechRecognitionObj.onresult = (event) => {
+        let interimTranscript = '';
         let finalTranscript = '';
+
         for (let i = event.resultIndex; i < event.results.length; ++i) {
+            const transcript = event.results[i][0].transcript;
             if (event.results[i].isFinal) {
-                finalTranscript += event.results[i][0].transcript;
+                finalTranscript += transcript + ' ';
+            } else {
+                interimTranscript += transcript;
             }
         }
 
         if (finalTranscript) {
-            const lowerText = finalTranscript.toLowerCase().strip ? finalTranscript.toLowerCase().strip() : finalTranscript.toLowerCase().trim();
-            const wakeWords = ["hey strike", "strike", "hey pocket strike", "pocket strike", "ok strike", "hi strike"];
-            const hasWakeWord = wakeWords.some(w => lowerText.includes(w));
+            accumulatedVoiceText += ' ' + finalTranscript;
+        }
 
-            if (hasWakeWord || isVoiceActive) {
-                let cleanPrompt = lowerText;
-                wakeWords.forEach(w => {
-                    cleanPrompt = cleanPrompt.replace(w, '').trim();
-                });
+        const combinedText = (accumulatedVoiceText + ' ' + interimTranscript).trim();
+        if (!combinedText) return;
 
-                if (cleanPrompt.length > 1) {
-                    console.log("🎙️ Voice command recognized:", cleanPrompt);
-                    chatInput.value = cleanPrompt;
-                    autoGrowInput();
-                    handleSend();
-                }
+        const lowerText = combinedText.toLowerCase();
+        const wakeWords = ["hey strike", "strike", "hey pocket strike", "pocket strike", "ok strike", "hi strike"];
+        const hasWakeWord = wakeWords.some(w => lowerText.includes(w));
+
+        if (hasWakeWord || isVoiceActive) {
+            let cleanPrompt = combinedText;
+            wakeWords.forEach(w => {
+                const reg = new RegExp(w, "gi");
+                cleanPrompt = cleanPrompt.replace(reg, '').trim();
+            });
+
+            if (cleanPrompt.length > 0) {
+                // Show real-time transcription inside chat input box
+                chatInput.value = cleanPrompt;
+                autoGrowInput();
+
+                // Clear previous silence timer to wait for complete sentence
+                if (speechSilenceTimer) clearTimeout(speechSilenceTimer);
+
+                // Set debounce timer: Wait 1.3s of silence after user stops speaking before submitting full prompt
+                speechSilenceTimer = setTimeout(() => {
+                    const promptToSend = chatInput.value.trim();
+                    if (promptToSend.length > 1 && !isGenerating) {
+                        console.log("🎙️ Complete Voice Prompt Submitted:", promptToSend);
+                        accumulatedVoiceText = '';
+                        handleSend();
+                    }
+                }, 1300);
             }
         }
     };
@@ -1346,7 +1372,7 @@ function initVoiceAssistant() {
         if (isVoiceActive) {
             setTimeout(() => {
                 try { speechRecognitionObj.start(); } catch (e) {}
-            }, 400);
+            }, 300);
         }
     };
 }

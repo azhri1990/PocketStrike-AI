@@ -5484,9 +5484,11 @@ def voice_listener_daemon():
                 try:
                     import speech_recognition as sr
                     r = sr.Recognizer()
+                    r.pause_threshold = 1.2  # Wait 1.2s of silence before marking sentence complete
+                    r.energy_threshold = 300
                     with sr.Microphone() as source:
-                        r.adjust_for_ambient_noise(source, duration=0.3)
-                        audio = r.listen(source, timeout=2, phrase_time_limit=6)
+                        r.adjust_for_ambient_noise(source, duration=0.4)
+                        audio = r.listen(source, timeout=3, phrase_time_limit=15)
                         spoken_text = r.recognize_google(audio)
                 except Exception:
                     pass
