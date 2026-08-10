@@ -1281,7 +1281,6 @@ function speakTextResponse(text) {
 }
 
 let speechSilenceTimer = null;
-let accumulatedVoiceText = '';
 
 function initVoiceAssistant() {
     if (!voiceBtn) return;
@@ -1308,53 +1307,55 @@ function initVoiceAssistant() {
     });
 
     speechRecognitionObj.onresult = (event) => {
-        let interimTranscript = '';
-        let finalTranscript = '';
+        // Reconstruct the clean full transcript directly from event.results (prevents word duplication)
+        let fullTranscript = '';
+        let isLastResultFinal = false;
 
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-            const transcript = event.results[i][0].transcript;
-            if (event.results[i].isFinal) {
-                finalTranscript += transcript + ' ';
-            } else {
-                interimTranscript += transcript;
+        for (let i = 0; i < event.results.length; ++i) {
+            fullTranscript += event.results[i][0].transcript + ' ';
+            if (i === event.results.length - 1 && event.results[i].isFinal) {
+                isLastResultFinal = true;
             }
         }
 
-        if (finalTranscript) {
-            accumulatedVoiceText += ' ' + finalTranscript;
-        }
+        const rawText = fullTranscript.trim();
+        if (!rawText) return;
 
-        const combinedText = (accumulatedVoiceText + ' ' + interimTranscript).trim();
-        if (!combinedText) return;
-
-        const lowerText = combinedText.toLowerCase();
+        const lowerText = rawText.toLowerCase();
         const wakeWords = ["hey strike", "strike", "hey pocket strike", "pocket strike", "ok strike", "hi strike"];
         const hasWakeWord = wakeWords.some(w => lowerText.includes(w));
 
         if (hasWakeWord || isVoiceActive) {
-            let cleanPrompt = combinedText;
+            let cleanPrompt = rawText;
             wakeWords.forEach(w => {
                 const reg = new RegExp(w, "gi");
                 cleanPrompt = cleanPrompt.replace(reg, '').trim();
             });
 
             if (cleanPrompt.length > 0) {
-                // Show real-time transcription inside chat input box
+                // Show clean live transcription in input box
                 chatInput.value = cleanPrompt;
                 autoGrowInput();
 
-                // Clear previous silence timer to wait for complete sentence
+                // Reset silence timer on every new speech event
                 if (speechSilenceTimer) clearTimeout(speechSilenceTimer);
 
-                // Set debounce timer: Wait 1.3s of silence after user stops speaking before submitting full prompt
+                // Google Assistant Silence Detection: 1.0s if final phrase boundary reached, 1.4s for pause in continuous speech
+                const silenceDelay = isLastResultFinal ? 1000 : 1400;
+
                 speechSilenceTimer = setTimeout(() => {
                     const promptToSend = chatInput.value.trim();
                     if (promptToSend.length > 1 && !isGenerating) {
-                        console.log("🎙️ Complete Voice Prompt Submitted:", promptToSend);
-                        accumulatedVoiceText = '';
+                        console.log("🎙️ Google Assistant Style - Voice Prompt Submitted:", promptToSend);
+                        
+                        // Restart recognition session to clear event.results buffer and avoid duplication on next command
+                        try {
+                            speechRecognitionObj.stop();
+                        } catch (e) {}
+
                         handleSend();
                     }
-                }, 1300);
+                }, silenceDelay);
             }
         }
     };
@@ -1368,7 +1369,7 @@ function initVoiceAssistant() {
     };
 
     speechRecognitionObj.onend = () => {
-        // Auto restart if voice mode is still enabled
+        // Auto restart if voice mode is still active
         if (isVoiceActive) {
             setTimeout(() => {
                 try { speechRecognitionObj.start(); } catch (e) {}
