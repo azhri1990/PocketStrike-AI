@@ -597,7 +597,7 @@ def get_system_prompt():
     # Load remote MCP tools
     mcp_conns = load_mcp_connections()
     mcp_tool_lines = []
-    tool_counter = 65
+    tool_counter = 70
     for conn in mcp_conns:
         server_name = conn.get("name")
         for t in conn.get("tools", []):
@@ -777,11 +777,25 @@ Available Tools:
 63. jwt_decoder_analyzer(token)
     Decodes JSON Web Token (JWT) structure, claims, algorithm, and audits for security misconfigurations (e.g., 'none' algorithm vulnerabilities).
 64. system_process_monitor(filter_name="")
-    Monitors active processes running in Termux/Android, listing PID, user, CPU%, memory, and command lines.{mcp_tools_block}
+    Monitors active processes running in Termux/Android, listing PID, user, CPU%, memory, and command lines.
+65. send_whatsapp_message(contact_or_number, message, auto_send=True)
+    Sends a WhatsApp message directly to a phone number or contact name (e.g. 'Alex' or '+1234567890'). Automatically searches local address book if contact name is given, launches the WhatsApp chat with the message drafted, and triggers send. (runs via local Shizuku/ADB & Termux-API).
+66. play_media(query, app="spotify")
+    Dispatches media playback intents for Spotify, YouTube, or YouTube Music (e.g. play_media(query="favorite playlist", app="spotify") or play_media(query="lofi hip hop", app="youtube")). (runs via local Shizuku/ADB).
+67. smart_ui_click(target)
+    Finds a UI element on the phone's active screen matching 'target' (by visible text, accessibility description, or resource ID like 'Search', 'Send', 'Chats', 'Allow', 'Play') and taps its center in a single step without needing manual coordinate calculations. (runs via local Shizuku/ADB).
+68. smart_ui_type(target="", text="")
+    Taps the target input element (e.g. 'Search', 'Type a message') to focus it and types the specified text. Uses clipboard paste to flawlessly support spaces, punctuation, unicode, and emojis. (runs via local Shizuku/ADB).
+69. send_android_intent(action, data_uri="", package_name="", extras="")
+    Dispatches any custom Android Intent via 'am start' (e.g. open Google Maps navigation 'google.navigation:q=Paris', set alarms, open Instagram, dial phone numbers). (runs via local Shizuku/ADB).{mcp_tools_block}
 
 Instructions:
 - When a user asks you a question that requires a tool, output ONLY the tool call trigger. Do not include any prefix, suffix, or explanation in that turn.
-- Once you receive the tool result, read it carefully and answer the user's question directly.
+- Once you receive the tool result, read it carefully and either formulate your final response or trigger the next tool call in multi-step workflows.
+- Autonomous App Control & JARVIS Mode:
+  * For messaging (e.g. "Send a message on WhatsApp to Alex", "Tell mom on WhatsApp I'm on my way"): Always call send_whatsapp_message(contact_or_number="...", message="..."). It automatically searches the address book, launches the chat, drafts the message, and triggers send.
+  * For music & media playback (e.g. "Play my favorite playlist on Spotify", "Play song on YouTube"): Always call play_media(query="...", app="spotify") (or app="youtube" / "youtube_music").
+  * For autonomous UI navigation & multi-step actions across apps: You have up to 25 continuous tool turns to accomplish complex goals. Use smart_ui_click(target) to click buttons or options by label or name, smart_ui_type(target, text) to enter input text with full emoji and space support, dump_ui_layout() to inspect active screen elements, launch_app(package_name) to switch apps, and swipe_screen / press_key for gestures.
 - Maintain a helpful, technical, and professional tone.
 """
 
@@ -2576,7 +2590,7 @@ def control_android_system(action, target=""):
         "expand_notifications": "cmd statusbar expand-notifications",
         "collapse_notifications": "cmd statusbar collapse",
         "get_current_app": "dumpsys window | grep mCurrentFocus",
-        "type_text": f"input text '{target}'"
+        "type_text": "smart_type"
     }
     
     if action not in cmd_map:
@@ -2585,6 +2599,9 @@ def control_android_system(action, target=""):
     ok, out = run_adb_command("devices")
     if not ok or len([line for line in out.strip().split("\n") if "device" in line and not "devices" in line]) == 0:
         return "Error: ADB/Shizuku is not connected. Make sure Shizuku or local Wireless Debugging is running."
+        
+    if action == "type_text":
+        return smart_ui_type("", target)
         
     cmd = cmd_map[action]
     ok, out = run_adb_command(f"shell {cmd}")
@@ -3522,50 +3539,42 @@ def audit_website_security(url):
     except Exception as e:
         return f"Error executing website security auditor: {str(e)}"
 
-def dump_ui_layout():
+def _get_ui_elements():
+    """Helper to dump and parse active screen UI elements into structured objects."""
     try:
         import re
-        import os
         import xml.etree.ElementTree as ET
         
-        # 1. Run uiautomator dump on the device
         dump_file_on_device = "/data/local/tmp/window_dump.xml"
         ok, out = run_adb_command(f"shell uiautomator dump {dump_file_on_device}")
         if not ok:
-            return f"Error dumping UI layout: {out}"
+            return False, f"Error dumping UI layout: {out}"
             
-        # 2. Cat/Read the XML content from the device
         ok, xml_content = run_adb_command(f"shell cat {dump_file_on_device}")
-        if not ok or not xml_content.strip():
-            return f"Error reading UI XML: {xml_content}"
-            
-        # Clean up the file on the device
         run_adb_command(f"shell rm {dump_file_on_device}")
         
-        # 3. Parse the XML content
+        if not ok or not xml_content.strip():
+            return False, f"Error reading UI XML: {xml_content}"
+            
         try:
-            # Android XML dumps sometimes contain null characters or bad encoding; let's sanitize
             cleaned_xml = re.sub(r'[^\x09\x0A\x0D\x20-\x7E\x80-\xFF]', '', xml_content)
             root = ET.fromstring(cleaned_xml)
         except Exception as parse_err:
-            return f"Error parsing UI XML: {parse_err}\nRaw output length: {len(xml_content)}"
+            return False, f"Error parsing UI XML: {parse_err}"
             
         interactable_elements = []
         
         def traverse(node):
             attrib = node.attrib
-            # Extract attributes
             text = attrib.get("text", "").strip()
             content_desc = attrib.get("content-desc", "").strip()
             resource_id = attrib.get("resource-id", "").strip()
-            class_name = attrib.get("class", "").split(".")[-1] # Short class name e.g. Button
+            class_name = attrib.get("class", "").split(".")[-1]
             bounds = attrib.get("bounds", "")
             clickable = attrib.get("clickable", "false").lower() == "true"
             enabled = attrib.get("enabled", "true").lower() == "true"
             
-            # Check if this node has useful text or is interactable
             if (text or content_desc or resource_id) and enabled:
-                # Parse bounds [xmin,ymin][xmax,ymax]
                 match = re.match(r'\[(\d+),(\d+)\]\[(\d+),(\d+)\]', bounds)
                 if match:
                     x1, y1, x2, y2 = map(int, match.groups())
@@ -3575,16 +3584,16 @@ def dump_ui_layout():
                     element_info = {
                         "class": class_name,
                         "center": (x_center, y_center),
-                        "bounds": f"[{x1},{y1}][{x2},{y2}]"
+                        "bounds": f"[{x1},{y1}][{x2},{y2}]",
+                        "raw_bounds": (x1, y1, x2, y2)
                     }
                     if text:
                         element_info["text"] = text
                     if content_desc:
                         element_info["content-desc"] = content_desc
                     if resource_id:
-                        # Clean resource id: remove package prefix if long
-                        short_id = resource_id.split("/")[-1]
-                        element_info["resource-id"] = short_id
+                        element_info["resource-id"] = resource_id.split("/")[-1]
+                        element_info["full_resource_id"] = resource_id
                     if clickable:
                         element_info["clickable"] = True
                         
@@ -3594,29 +3603,320 @@ def dump_ui_layout():
                 traverse(child)
                 
         traverse(root)
-        
-        # 4. Format output cleanly
-        if not interactable_elements:
-            return "No readable or interactable elements found on the current screen."
-            
-        output = ["=== ACTIVE SCREEN UI ELEMENTS ==="]
-        for idx, el in enumerate(interactable_elements, 1):
-            details = []
-            if "text" in el:
-                details.append(f"Text: \"{el['text']}\"")
-            if "content-desc" in el:
-                details.append(f"Desc: \"{el['content-desc']}\"")
-            if "resource-id" in el:
-                details.append(f"ID: \"{el['resource-id']}\"")
-                
-            details_str = ", ".join(details)
-            clickable_badge = " [Clickable]" if el.get("clickable") else ""
-            output.append(f"[{idx}] {el['class']}{clickable_badge} -> Center: {el['center']} | {details_str}")
-            
-        return "\n".join(output)
-        
+        return True, interactable_elements
     except Exception as e:
-        return f"Error executing UI layout dumper: {str(e)}"
+        return False, str(e)
+
+def dump_ui_layout():
+    ok, result = _get_ui_elements()
+    if not ok:
+        return f"Error dumping UI layout: {result}"
+        
+    interactable_elements = result
+    if not interactable_elements:
+        return "No readable or interactable elements found on the current screen."
+        
+    output = ["=== ACTIVE SCREEN UI ELEMENTS ==="]
+    for idx, el in enumerate(interactable_elements, 1):
+        details = []
+        if "text" in el:
+            details.append(f"Text: \"{el['text']}\"")
+        if "content-desc" in el:
+            details.append(f"Desc: \"{el['content-desc']}\"")
+        if "resource-id" in el:
+            details.append(f"ID: \"{el['resource-id']}\"")
+            
+        details_str = ", ".join(details)
+        clickable_badge = " [Clickable]" if el.get("clickable") else ""
+        output.append(f"[{idx}] {el['class']}{clickable_badge} -> Center: {el['center']} | {details_str}")
+        
+    return "\n".join(output)
+
+def smart_ui_click(target):
+    """Finds an element by visible text, content-desc, or resource ID and taps its center."""
+    ok, elements = _get_ui_elements()
+    if not ok:
+        return f"Error retrieving screen elements: {elements}"
+        
+    if not elements:
+        return "Error: No visible UI elements detected on the screen."
+        
+    target_lower = str(target).strip().lower()
+    
+    # 1. Exact match pass - prioritize clickable elements
+    matched_el = None
+    for el in elements:
+        t = el.get("text", "").lower()
+        d = el.get("content-desc", "").lower()
+        r = el.get("resource-id", "").lower()
+        fr = el.get("full_resource_id", "").lower()
+        if (target_lower == t or target_lower == d or target_lower == r or target_lower == fr) and el.get("clickable"):
+            matched_el = el
+            break
+            
+    if not matched_el:
+        for el in elements:
+            t = el.get("text", "").lower()
+            d = el.get("content-desc", "").lower()
+            r = el.get("resource-id", "").lower()
+            fr = el.get("full_resource_id", "").lower()
+            if target_lower == t or target_lower == d or target_lower == r or target_lower == fr:
+                matched_el = el
+                break
+                
+    # 2. Substring match pass - prioritize clickable elements
+    if not matched_el:
+        for el in elements:
+            t = el.get("text", "").lower()
+            d = el.get("content-desc", "").lower()
+            r = el.get("resource-id", "").lower()
+            fr = el.get("full_resource_id", "").lower()
+            if (target_lower in t or target_lower in d or target_lower in r or target_lower in fr) and el.get("clickable"):
+                matched_el = el
+                break
+                
+    if not matched_el:
+        for el in elements:
+            t = el.get("text", "").lower()
+            d = el.get("content-desc", "").lower()
+            r = el.get("resource-id", "").lower()
+            fr = el.get("full_resource_id", "").lower()
+            if target_lower in t or target_lower in d or target_lower in r or target_lower in fr:
+                matched_el = el
+                break
+                
+    if not matched_el:
+        samples = []
+        for el in elements[:12]:
+            label = el.get("text") or el.get("content-desc") or el.get("resource-id")
+            if label:
+                samples.append(f"'{label}'")
+        visible_hint = ", ".join(samples) if samples else "none"
+        return f"Error: Could not find element matching '{target}'. Visible elements on screen: [{visible_hint}]. Try dump_ui_layout() to view all elements."
+        
+    x, y = matched_el["center"]
+    label = matched_el.get("text") or matched_el.get("content-desc") or matched_el.get("resource-id")
+    tap_res = tap_screen(x, y)
+    if "Success" in tap_res:
+        return f"Success: Clicked element '{label}' ({matched_el['class']}) at coordinates ({x}, {y})."
+    return f"Failed tapping '{label}' at ({x}, {y}): {tap_res}"
+
+def smart_ui_type(target="", text=""):
+    """Focuses target input element (if specified) and types text using clipboard paste for emojis, unicode, and spaces."""
+    import time
+    if target:
+        click_res = smart_ui_click(target)
+        if not click_res.startswith("Success"):
+            return f"Failed to focus input target '{target}': {click_res}"
+        time.sleep(0.4)
+        
+    if not text:
+        return "Success: Element focused (no text provided)."
+        
+    # Method 1: Set clipboard and send KEYCODE_PASTE (279) - Best for spaces, unicode, and emojis
+    try:
+        clip_res = set_clipboard(text)
+        if isinstance(clip_res, str) and clip_res.startswith("Success"):
+            time.sleep(0.25)
+            paste_ok, paste_out = run_adb_command("shell input keyevent 279")
+            if paste_ok:
+                return f"Success: Typed '{text}' into {f'element \"{target}\"' if target else 'active field'} via clipboard paste."
+    except Exception:
+        pass
+        
+    # Method 2: Robust fallback to escaped shell input text
+    escaped_chars = []
+    for ch in str(text):
+        if ch == ' ':
+            escaped_chars.append('%s')
+        elif ch in ['\\', '"', "'", '$', '`', '&', ';', '(', ')', '<', '>', '|', '~', '*', '?', '!', '#']:
+            escaped_chars.append('\\' + ch)
+        else:
+            escaped_chars.append(ch)
+    escaped_text = "".join(escaped_chars)
+    type_ok, type_out = run_adb_command(f'shell input text "{escaped_text}"')
+    if type_ok:
+        return f"Success: Typed '{text}' into {f'element \"{target}\"' if target else 'active field'}."
+    return f"Error typing text: {type_out}"
+
+def send_whatsapp_message(contact_or_number, message, auto_send=True):
+    """Sends a WhatsApp message directly to a phone number or contact name using Android intents, contacts lookup, or autonomous in-app navigation."""
+    import re
+    import urllib.parse
+    import time
+    
+    target = str(contact_or_number).strip()
+    phone_number = ""
+    contact_name = target
+    
+    # 1. Check if target contains only digits or phone format
+    is_phone_num = bool(re.match(r'^\+?[\d\s\-\(\)]{7,20}$', target))
+    if is_phone_num:
+        phone_number = re.sub(r'[^\d+]', '', target)
+    else:
+        # Search address book via read_contacts_list
+        contact_res = read_contacts_list(target)
+        if not contact_res.startswith("Error") and not contact_res.startswith("No matching"):
+            lines = contact_res.split("\n")
+            for line in lines:
+                if ":" in line:
+                    parts = line.split(":", 1)
+                    num_candidate = parts[1].strip()
+                    num_clean = re.sub(r'[^\d+]', '', num_candidate)
+                    if len(num_clean) >= 7:
+                        phone_number = num_clean
+                        contact_name = parts[0].lstrip("- ").strip()
+                        break
+                        
+    # 2. If phone number is resolved, use high-speed deep-link intent
+    if phone_number:
+        clean_digits = phone_number.lstrip("+")
+        encoded_msg = urllib.parse.quote(str(message))
+        
+        intent_url = f"https://api.whatsapp.com/send?phone={clean_digits}&text={encoded_msg}"
+        ok, out = run_adb_command(f'shell am start -a android.intent.action.VIEW -d "{intent_url}" -p com.whatsapp')
+        
+        if not ok or "Error" in out:
+            ok, out = run_adb_command(f'shell am start -a android.intent.action.VIEW -d "{intent_url}"')
+            if not ok:
+                return f"Error launching WhatsApp intent: {out}"
+                
+        if not auto_send:
+            return f"Success: Opened WhatsApp chat with {contact_name} ({phone_number}) with drafted message: \"{message}\"."
+            
+        # Auto-send: wait for WhatsApp chat screen to load
+        time.sleep(1.8)
+        
+        # Try clicking Send button
+        for send_btn in ["Send", "send", "com.whatsapp:id/send"]:
+            click_res = smart_ui_click(send_btn)
+            if "Success" in click_res:
+                return f"Success: Sent WhatsApp message to {contact_name} ({phone_number}): \"{message}\"."
+                
+        # Brief retry if UI transition was slow
+        time.sleep(1.0)
+        for send_btn in ["Send", "send", "com.whatsapp:id/send"]:
+            click_res = smart_ui_click(send_btn)
+            if "Success" in click_res:
+                return f"Success: Sent WhatsApp message to {contact_name} ({phone_number}): \"{message}\"."
+                
+        # Fallback to Enter keyevent
+        run_adb_command("shell input keyevent 66")
+        return f"Success: Opened WhatsApp chat with {contact_name} ({phone_number}) and triggered send. Message: \"{message}\"."
+
+    # 3. Fallback: Autonomous In-App WhatsApp UI Navigation (if phone number is not in address book)
+    launch_res = launch_app("com.whatsapp")
+    if "Error" in launch_res:
+        return f"Error: Could not resolve phone number for '{target}' from address book, and failed to launch WhatsApp: {launch_res}"
+    time.sleep(1.8)
+    
+    # Tap WhatsApp search icon
+    search_clicked = False
+    for s_target in ["Search", "search", "menuitem_search", "com.whatsapp:id/menuitem_search"]:
+        res = smart_ui_click(s_target)
+        if res.startswith("Success"):
+            search_clicked = True
+            break
+    if not search_clicked:
+        run_adb_command("shell input keyevent 84") # KEYCODE_SEARCH
+        
+    time.sleep(0.8)
+    smart_ui_type("", target)
+    time.sleep(1.5)
+    
+    # Click contact in search results
+    contact_click = smart_ui_click(target)
+    if not contact_click.startswith("Success"):
+        return f"Opened WhatsApp and searched for '{target}', but could not find matching chat. You can use dump_ui_layout() to inspect visible chats."
+        
+    time.sleep(1.2)
+    # Type message
+    type_res = smart_ui_type("Type a message", message)
+    if not type_res.startswith("Success"):
+        smart_ui_type("Message", message)
+        
+    if not auto_send:
+        return f"Success: Opened WhatsApp chat with '{target}' and drafted message: \"{message}\"."
+        
+    time.sleep(0.8)
+    for send_btn in ["Send", "send", "com.whatsapp:id/send"]:
+        click_res = smart_ui_click(send_btn)
+        if "Success" in click_res:
+            return f"Success: Sent WhatsApp message to '{target}': \"{message}\"."
+            
+    run_adb_command("shell input keyevent 66")
+    return f"Success: Opened WhatsApp chat with '{target}' and triggered send. Message: \"{message}\"."
+
+def play_media(query, app="spotify"):
+    """Dispatches media playback intents for Spotify, YouTube, YouTube Music, or standard players."""
+    import urllib.parse
+    import time
+    
+    app_choice = str(app).lower().strip()
+    query_str = str(query).strip()
+    encoded_q = urllib.parse.quote(query_str)
+    
+    if app_choice == "spotify":
+        ok, out = run_adb_command(f'shell am start -a android.media.action.MEDIA_PLAY_FROM_SEARCH -e query "{query_str}" -p com.spotify.music')
+        if not ok or "Error" in out:
+            ok, out = run_adb_command(f'shell am start -a android.intent.action.VIEW -d "spotify:search:{encoded_q}" -p com.spotify.music')
+            if not ok or "Error" in out:
+                ok, out = run_adb_command(f'shell am start -a android.intent.action.VIEW -d "spotify:search:{encoded_q}"')
+            
+        time.sleep(1.8)
+        # Attempt to tap Play or Shuffle button if Spotify is on album/playlist page
+        for p_btn in ["Play", "Shuffle play", "play", "shuffle"]:
+            c_res = smart_ui_click(p_btn)
+            if c_res.startswith("Success"):
+                break
+        run_adb_command("shell input keyevent 126") # KEYCODE_MEDIA_PLAY
+        run_adb_command("shell input keyevent 85")  # KEYCODE_MEDIA_PLAY_PAUSE
+        return f"Success: Launched Spotify playback search for '{query_str}' and triggered play."
+        
+    elif app_choice in ["youtube", "yt"]:
+        ok, out = run_adb_command(f'shell am start -a android.intent.action.SEARCH -q "{query_str}" -p com.google.android.youtube')
+        if not ok or "Error" in out:
+            ok, out = run_adb_command(f'shell am start -a android.intent.action.VIEW -d "https://www.youtube.com/results?search_query={encoded_q}"')
+        time.sleep(2.0)
+        # Attempt to tap first matching video result
+        dump_ok, elements = _get_ui_elements()
+        if dump_ok and elements:
+            for el in elements:
+                t = el.get("text", "").lower()
+                d = el.get("content-desc", "").lower()
+                if query_str.lower() in t or query_str.lower() in d:
+                    tap_screen(el["center"][0], el["center"][1])
+                    break
+        return f"Success: Launched YouTube search and playback for '{query_str}'."
+        
+    elif app_choice in ["youtube_music", "yt_music", "ytmusic"]:
+        ok, out = run_adb_command(f'shell am start -a android.media.action.MEDIA_PLAY_FROM_SEARCH -e query "{query_str}" -p com.google.android.apps.youtube.music')
+        if not ok or "Error" in out:
+            ok, out = run_adb_command(f'shell am start -a android.intent.action.VIEW -d "https://music.youtube.com/search?q={encoded_q}"')
+        time.sleep(2.0)
+        run_adb_command("shell input keyevent 126")
+        return f"Success: Launched YouTube Music playback for '{query_str}'."
+        
+    else:
+        ok, out = run_adb_command(f'shell am start -a android.media.action.MEDIA_PLAY_FROM_SEARCH -e query "{query_str}"')
+        time.sleep(1.0)
+        run_adb_command("shell input keyevent 126")
+        return f"Success: Dispatched generic media play for '{query_str}'."
+
+def send_android_intent(action, data_uri="", package_name="", extras=""):
+    """Dispatches a custom Android Intent via ADB/Shizuku."""
+    cmd = f'shell am start -a {action}'
+    if data_uri:
+        cmd += f' -d "{data_uri}"'
+    if package_name:
+        cmd += f' -p {package_name}'
+    if extras:
+        cmd += f' {extras}'
+        
+    ok, out = run_adb_command(cmd)
+    if ok:
+        return f"Success: Dispatched Android Intent '{action}'. Output: {out.strip() or 'OK'}"
+    return f"Error dispatching intent: {out}"
 
 def parse_arguments(arg_str):
     if not arg_str.strip():
@@ -3940,6 +4240,36 @@ def execute_local_tool(name, args_str):
         elif name == "system_process_monitor":
             filter_name = kwargs.get("filter_name", "")
             return system_process_monitor(filter_name)
+        elif name == "send_whatsapp_message":
+            contact_or_number = kwargs.get("contact_or_number")
+            message = kwargs.get("message")
+            auto_send = kwargs.get("auto_send", True)
+            if not contact_or_number or not message:
+                return "Error: Missing required arguments 'contact_or_number' and/or 'message'."
+            return send_whatsapp_message(contact_or_number, message, auto_send)
+        elif name == "play_media":
+            query = kwargs.get("query")
+            app = kwargs.get("app", "spotify")
+            if not query:
+                return "Error: Missing required argument 'query'."
+            return play_media(query, app)
+        elif name == "smart_ui_click":
+            target = kwargs.get("target")
+            if not target:
+                return "Error: Missing required argument 'target'."
+            return smart_ui_click(target)
+        elif name == "smart_ui_type":
+            text = kwargs.get("text", "")
+            target = kwargs.get("target", "")
+            return smart_ui_type(target, text)
+        elif name == "send_android_intent":
+            action = kwargs.get("action")
+            data_uri = kwargs.get("data_uri", "")
+            package_name = kwargs.get("package_name", "")
+            extras = kwargs.get("extras", "")
+            if not action:
+                return "Error: Missing required argument 'action'."
+            return send_android_intent(action, data_uri, package_name, extras)
         else:
             # Check if it's an MCP tool
             mcp_conns = load_mcp_connections()
@@ -4020,7 +4350,7 @@ def get_ai_response_with_tools(messages):
         })
         
     loop_count = 0
-    max_loops = 5
+    max_loops = 25
     
     while loop_count < max_loops:
         response_text = call_ai_api(messages)
@@ -4189,7 +4519,7 @@ def get_ai_response_stream(messages):
         })
         
     loop_count = 0
-    max_loops = 10
+    max_loops = 25
     
     while loop_count < max_loops:
         stream = call_ai_api_stream(messages)
