@@ -194,6 +194,14 @@
                         <button class="action-btn" id="attachBtn" title="Attach file">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
                         </button>
+                        <button class="action-btn voice-input-btn" id="voiceInputBtn" title="Voice Assistant ('Hey Strike' / 'Hey Jarvis')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                                <line x1="12" y1="19" x2="12" y2="23"></line>
+                                <line x1="10" y1="23" x2="14" y2="23"></line>
+                            </svg>
+                        </button>
                         <button class="send-btn" id="sendBtn" title="Send message">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
                         </button>
@@ -225,6 +233,37 @@
             <div class="modal-actions">
                 <button class="modal-cancel-btn" id="mcpCancelBtn">Cancel</button>
                 <button class="modal-submit-btn" id="mcpSubmitBtn">Connect</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 🎙️ Google Assistant / JARVIS Floating Voice HUD -->
+    <div class="voice-assistant-overlay" id="voiceAssistantOverlay">
+        <div class="voice-hud-glow"></div>
+        <div class="voice-hud-container">
+            <div class="voice-hud-top">
+                <div class="voice-hud-status-badge">
+                    <span class="voice-hud-dot"></span>
+                    <span class="voice-hud-status-text" id="voiceHudStatus">Listening...</span>
+                </div>
+                <button class="voice-hud-close-btn" id="voiceHudClose" title="Dismiss Voice Assistant">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            <div class="voice-hud-middle">
+                <div class="voice-hud-transcript-box">
+                    <p class="voice-hud-transcript" id="voiceHudTranscript">Say "Hey Strike" or speak a command...</p>
+                </div>
+            </div>
+            <div class="voice-hud-bottom">
+                <div class="voice-hud-visualizer" id="voiceHudVisualizer">
+                    <span class="voice-wave-bar bar-1"></span>
+                    <span class="voice-wave-bar bar-2"></span>
+                    <span class="voice-wave-bar bar-3"></span>
+                    <span class="voice-wave-bar bar-4"></span>
+                    <span class="voice-wave-bar bar-5"></span>
+                </div>
+                <span class="voice-hud-tip">Listening for "Hey Strike" • Tap screen to cancel</span>
             </div>
         </div>
     </div>

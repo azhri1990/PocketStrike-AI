@@ -796,6 +796,14 @@ Instructions:
   * For messaging (e.g. "Send a message on WhatsApp to Alex", "Tell mom on WhatsApp I'm on my way"): Always call send_whatsapp_message(contact_or_number="...", message="..."). It automatically searches the address book, launches the chat, drafts the message, and triggers send.
   * For music & media playback (e.g. "Play my favorite playlist on Spotify", "Play song on YouTube"): Always call play_media(query="...", app="spotify") (or app="youtube" / "youtube_music").
   * For autonomous UI navigation & multi-step actions across apps: You have up to 25 continuous tool turns to accomplish complex goals. Use smart_ui_click(target) to click buttons or options by label or name, smart_ui_type(target, text) to enter input text with full emoji and space support, dump_ui_layout() to inspect active screen elements, launch_app(package_name) to switch apps, and swipe_screen / press_key for gestures.
+- JARVIS Voice Assistant Response Style (CRITICAL — applies to ALL voice commands):
+  * When a user sends a voice command, respond ONLY with a short, natural, conversational 1-2 sentence spoken confirmation BEFORE and AFTER executing tools. Examples:
+    - "Playing Closer by The Chainsmokers on YouTube for you now." (then call tools)
+    - "Sending your message to Jack right away." (then call tools)
+    - "Got it! Opening WhatsApp and sending the message to Alex." (then call tools)
+  * NEVER narrate your tool calls, code, JSON, or technical steps in the spoken response. The user hears your text via speech synthesis — keep it natural, brief, and human.
+  * After completing the task, give a short friendly completion like "Done! Message sent to Alex." or "Your song is playing."
+  * If the user says "Hey Strike" or "Hey Jarvis" or "OK Strike" followed by a command, they are using the voice interface. Respond concisely.
 - Maintain a helpful, technical, and professional tone.
 """
 
@@ -2305,28 +2313,61 @@ def speak_text(text):
     try:
         import subprocess
         import shutil
+        import re
+        import os
+        
+        # Clean text for speech output (strip tool markers, code fences, markdown, and emojis)
+        clean_text = re.sub(r'\[TOOL_CALL:.*?\]', '', str(text))
+        clean_text = re.sub(r'\[TOOL_RESULT:.*?output\].*?(?=(\[TOOL_CALL:|\[TOOL_RESULT:|$))', '', clean_text, flags=re.DOTALL)
+        clean_text = re.sub(r'\[HISTORY_SYNC\]:.*', '', clean_text)
+        clean_text = re.sub(r'```.*?```', '', clean_text, flags=re.DOTALL)
+        clean_text = re.sub(r'[*_~`#>\[\]|]', '', clean_text)
+        clean_text = re.sub(r'https?://\S+', '', clean_text)
+        # Strip emoji codepoints
+        clean_text = re.sub(r'[\U00010000-\U0010ffff]', '', clean_text)
+        clean_text = re.sub(r'\s+', ' ', clean_text).strip()
+        
+        if not clean_text or len(clean_text) < 2:
+            clean_text = "I'm on it."
+            
+        # 1. Android Termux TTS
         if shutil.which("termux-tts-speak"):
-            res = subprocess.run(["termux-tts-speak", text], capture_output=True, text=True, timeout=8)
+            res = subprocess.run(["termux-tts-speak", clean_text], capture_output=True, text=True, timeout=10)
             if res.returncode == 0:
                 return "Success: Speaking text via Termux TTS."
             return f"Error triggering speech: {res.stderr}"
+            
+        # 2. macOS native say
         elif shutil.which("say"):
-            # macOS native TTS
-            res = subprocess.run(["say", text], capture_output=True, text=True, timeout=8)
+            res = subprocess.run(["say", clean_text], capture_output=True, text=True, timeout=10)
             if res.returncode == 0:
                 return "Success: Speaking text via macOS native say command."
             return f"Error triggering macOS speech: {res.stderr}"
+            
+        # 3. Windows PowerShell SAPI Speech
+        elif os.name == "nt":
+            safe_text = clean_text.replace("'", "''").replace('"', '`"')
+            ps_cmd = f"Add-Type -AssemblyName System.Speech; $synth = New-Object System.Speech.Synthesis.SpeechSynthesizer; $synth.Speak('{safe_text}')"
+            res = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_cmd], capture_output=True, text=True, timeout=10)
+            if res.returncode == 0:
+                return "Success: Speaking text via Windows SAPI."
+            return f"Notice: Windows SAPI error: {res.stderr}"
+            
+        # 4. Linux spd-say
         elif shutil.which("spd-say"):
-            res = subprocess.run(["spd-say", text], capture_output=True, text=True, timeout=8)
+            res = subprocess.run(["spd-say", clean_text], capture_output=True, text=True, timeout=10)
             if res.returncode == 0:
                 return "Success: Speaking text via Linux spd-say."
             return f"Error triggering spd-say speech: {res.stderr}"
+            
+        # 5. Linux espeak-ng / espeak
         elif shutil.which("espeak-ng") or shutil.which("espeak"):
             cmd = "espeak-ng" if shutil.which("espeak-ng") else "espeak"
-            res = subprocess.run([cmd, text], capture_output=True, text=True, timeout=8)
+            res = subprocess.run([cmd, clean_text], capture_output=True, text=True, timeout=10)
             if res.returncode == 0:
                 return f"Success: Speaking text via Linux {cmd}."
             return f"Error triggering espeak speech: {res.stderr}"
+            
         else:
             return "Notice: No Text-To-Speech engine found on host."
     except Exception as e:
