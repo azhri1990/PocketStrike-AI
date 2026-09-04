@@ -553,7 +553,7 @@ async function handleSend() {
         saveConversations();
         renderAll();
         scrollToBottom();
-        if (isVoiceActive) {
+        if (typeof voiceState !== 'undefined' && voiceState !== 'off') {
             const lastAssistantMsg = activeChat.messages.filter(m => m.role === 'assistant').pop();
             const textToSpeak = (lastAssistantMsg && lastAssistantMsg.content) ? lastAssistantMsg.content : streamedText;
             if (textToSpeak) {
@@ -1400,11 +1400,11 @@ function speakTextResponse(text, isGreeting = false) {
                     }
                 }, 150);
             } else {
-                // After finishing a normal response, return to background wake-word mode
-                voiceState = 'background';
-                setVoiceHudState('background', 'Waiting for "Hello Strike"...');
+                // Return to active conversational listening (like ChatGPT/Gemini)
+                voiceState = 'activated';
+                setVoiceHudState('listening', 'I am listening...');
                 setTimeout(() => {
-                    if (voiceState === 'background' && !isGenerating && !isVoiceSending) {
+                    if (voiceState === 'activated' && !isGenerating && !isVoiceSending) {
                         try { speechRecognitionObj.start(); } catch (e) {}
                     }
                 }, 350);
@@ -1417,8 +1417,8 @@ function speakTextResponse(text, isGreeting = false) {
         window.speechSynthesis.speak(utterance);
     } catch (e) {
         console.error("Speech Synthesis error:", e);
-        voiceState = 'background';
-        setVoiceHudState('background');
+        voiceState = 'activated';
+        setVoiceHudState('listening', 'I am listening...');
     }
 }
 
