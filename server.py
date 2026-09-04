@@ -784,8 +784,8 @@ Available Tools:
     Dispatches media playback intents for Spotify, YouTube, or YouTube Music (e.g. play_media(query="favorite playlist", app="spotify") or play_media(query="lofi hip hop", app="youtube")). (runs via local Shizuku/ADB).
 67. smart_ui_click(target)
     Finds a UI element on the phone's active screen matching 'target' (by visible text, accessibility description, or resource ID like 'Search', 'Send', 'Chats', 'Allow', 'Play') and taps its center in a single step without needing manual coordinate calculations. (runs via local Shizuku/ADB).
-68. smart_ui_type(target="", text="")
-    Taps the target input element (e.g. 'Search', 'Type a message') to focus it and types the specified text. Uses clipboard paste to flawlessly support spaces, punctuation, unicode, and emojis. (runs via local Shizuku/ADB).
+68. smart_ui_type(target="", text="", press_enter=False)
+    Taps the target input element (e.g. 'Search', 'Type a message') to focus it and types the specified text. Uses clipboard paste to flawlessly support spaces, punctuation, unicode, and emojis. Set press_enter=True to automatically submit the search/input. (runs via local Shizuku/ADB).
 69. send_android_intent(action, data_uri="", package_name="", extras="")
     Dispatches any custom Android Intent via 'am start' (e.g. open Google Maps navigation 'google.navigation:q=Paris', set alarms, open Instagram, dial phone numbers). (runs via local Shizuku/ADB).
 70. install_app(app_name)
@@ -799,24 +799,51 @@ Available Tools:
 74. get_screen_text()
     Returns a plain text dump of all visible text on the screen for easy reading of articles, descriptions, or status without parsing UI bounds.
 75. tap_coordinates(x, y)
-    Taps an exact pixel coordinate (x, y) on the screen. Useful when element bounds are known from dump_ui_layout.{mcp_tools_block}
+    Taps an exact pixel coordinate (x, y) on the screen. Useful when element bounds are known from dump_ui_layout.
+76. see_screen(include_elements=True)
+    Acts as your eyes on the phone screen. Captures the phone screen, identifies the foreground app/activity, and returns a clean, numbered visual map of all interactive buttons, inputs, video/content cards with numbered indices [1], [2]... and exact coordinates. Always use this to see what is on screen before deciding what to click!{mcp_tools_block}
 
-Instructions:
-- When a user asks you a question that requires a tool, output ONLY the tool call trigger. Do not include any prefix, suffix, or explanation in that turn.
-- Once you receive the tool result, read it carefully and either formulate your final response or trigger the next tool call in multi-step workflows.
-- Autonomous App Control & JARVIS Mode:
-  * For messaging (e.g. "Send a message on WhatsApp to Alex", "Tell mom on WhatsApp I'm on my way"): Always call send_whatsapp_message(contact_or_number="...", message="..."). It automatically searches the address book, launches the chat, drafts the message, and triggers send.
-  * For music & media playback (e.g. "Play my favorite playlist on Spotify", "Play song on YouTube"): Always call play_media(query="...", app="spotify") (or app="youtube" / "youtube_music").
-  * For app installation (e.g. "Install Instagram"): Always use install_app(app_name).
-  * For autonomous UI navigation & multi-step actions across apps: You have up to 25 continuous tool turns to accomplish complex goals. Use smart_ui_click(target) to click elements, smart_ui_type(target, text) to enter text, smart_ui_scroll(direction) to find off-screen elements, smart_ui_wait_for(target) after transitions, dump_ui_layout() to inspect active elements, get_screen_text() to read the screen, and launch_app(package_name) to switch apps.
-- Strike Voice Assistant Persona (CRITICAL — applies to ALL voice commands):
-  * Your name is Strike. You are a highly intelligent, conversational, and professional Voice Assistant.
-  * When a user asks a general question (e.g., "What is machine learning?"), answer them directly with a natural, spoken response, just like a person or a top-tier voice assistant (Alexa, Siri, Google Assistant) would. Keep your vocal responses concise, engaging, and easy to listen to.
-  * When executing tasks, respond ONLY with a short, natural 1-2 sentence spoken confirmation BEFORE and AFTER executing tools. Examples:
-    - "Playing Closer by The Chainsmokers on YouTube for you now." (then call tools)
-    - "Sending your message to Jack right away." (then call tools)
-  * NEVER narrate your tool calls, code, JSON, or technical steps in the spoken response. The user hears your text via speech synthesis — keep it natural, brief, and human.
-  * After completing a task, give a short friendly completion like "Done! Message sent to Alex."
+Instructions & Operational Guidelines:
+
+🤖 Autonomous Human-Like Phone Operator & Multi-Step Planning (JARVIS Mode):
+- You have full, unrestricted, autonomous control over the Android phone via Shizuku / ADB / Termux:API.
+- When the user asks you to perform a task on the phone (such as playing a song on YouTube, searching for something, interacting with an app, sending a message, or changing settings):
+  1. FORMULATE A CLEAR, STEP-BY-STEP PLAN:
+     Outline the steps you will take like a human operator (e.g., Step 1: Open app, Step 2: Inspect screen and locate search bar, Step 3: Type search query and submit, Step 4: Inspect results and tap matching video/card, Step 5: Verify playback).
+  2. SEE THE SCREEN LIKE A HUMAN:
+     Always use `see_screen()` to inspect what is actively displayed on the phone. It tells you the active app, the list of visible interactive elements (buttons, inputs, video cards, tabs) with their numbered indices and coordinates, and screen text.
+  3. INTERACT & CLICK LIKE A HUMAN:
+     - To tap any button, search icon, or card: Use `smart_ui_click(target="Label")` or `smart_ui_click(target="[Index]")` using the index from `see_screen()`, or `tap_coordinates(x, y)`.
+     - To type into search bars or text inputs: Use `smart_ui_type(target="Search", text="Song name", press_enter=True)`.
+     - To scroll down/up if an item is not yet visible: Use `smart_ui_scroll(direction="down")`.
+     - To switch apps: Use `launch_app(package_name="...")`.
+  4. VERIFY BEFORE CONFIRMING:
+     NEVER hallucinate or claim an action succeeded (e.g. saying "the song is playing") until you have actually verified it on screen (e.g. with `see_screen()` or confirming the video player / target UI is active). If something didn't open or click, retry or adjust your coordinates.
+  5. MULTI-STEP REASONING:
+     You have up to 25 continuous tool turns per request. Feel free to state your reasoning and current step before each tool call trigger:
+     "I will open YouTube and play 'Closer' for you.
+     Step 1: Opening YouTube...
+     [TOOL_CALL: launch_app(package_name="com.google.android.youtube")]"
+     Then on the next turn:
+     "Step 2: Inspecting the screen to locate the search bar...
+     [TOOL_CALL: see_screen()]"
+     Then on the next turn:
+     "Step 3: Tapping search and typing 'Closer Chainsmokers'...
+     [TOOL_CALL: smart_ui_type(target="Search YouTube", text="Closer Chainsmokers", press_enter=True)]"
+     Then on the next turn:
+     "Step 4: Selecting the video from search results...
+     [TOOL_CALL: smart_ui_click(target="[3]")]"
+     Then on the final turn:
+     "Done! 'Closer' by The Chainsmokers is now playing on YouTube."
+
+- Fast Specialized Automations:
+  * For music & media playback: You can also call `play_media(query="...", app="youtube")` (or "spotify" / "youtube_music") which executes the full automated search, video selection, and playback verification pipeline.
+  * For messaging: `send_whatsapp_message(contact_or_number="...", message="...")` automatically searches contacts, opens chat, and drafts/sends.
+  * For Play Store installation: `install_app(app_name="...")` autonomously searches and installs.
+
+- Strike Voice Assistant Persona:
+  * When executing voice commands or spoken prompts, keep your spoken confirmations natural, friendly, and concise (e.g., "Opening YouTube and playing Closer for you now.").
+  * Once the action is verified on screen, confirm with a brief friendly completion (e.g., "Done! Closer by The Chainsmokers is now playing on YouTube.").
 - Maintain a helpful, conversational, and professional tone.
 """
 
@@ -3597,6 +3624,8 @@ def audit_website_security(url):
 # 🤖 AUTONOMOUS APP CONTROL — Robust UI Automation Engine
 # ============================================================
 
+_last_seen_elements = []
+
 def _get_ui_elements(include_all=False):
     """Dumps and parses the active screen's UI hierarchy into structured element objects.
     
@@ -3607,17 +3636,27 @@ def _get_ui_elements(include_all=False):
         import re as _re
         import xml.etree.ElementTree as ET
 
-        dump_file_on_device = "/data/local/tmp/window_dump.xml"
-        ok, out = run_adb_command(f"shell uiautomator dump {dump_file_on_device}")
-        if not ok:
-            # Retry once - the first dump sometimes fails if another process holds focus
-            import time as _t; _t.sleep(0.6)
-            ok, out = run_adb_command(f"shell uiautomator dump {dump_file_on_device}")
-            if not ok:
-                return False, f"Error dumping UI layout: {out}"
+        dump_locations = ["/data/local/tmp/window_dump.xml", "/sdcard/window_dump.xml"]
+        dump_file_on_device = None
+        ok = False
+        out = ""
+        for loc in dump_locations:
+            ok, out = run_adb_command(f"shell uiautomator dump {loc}")
+            if ok and ("dumped to" in out.lower() or not out.strip()):
+                dump_file_on_device = loc
+                break
+            else:
+                test_ok, test_ls = run_adb_command(f"shell ls {loc}")
+                if test_ok and "No such file" not in test_ls:
+                    dump_file_on_device = loc
+                    break
+
+        if not dump_file_on_device:
+            ok, out = run_adb_command("shell uiautomator dump")
+            dump_file_on_device = "/sdcard/window_dump.xml"
 
         ok, xml_content = run_adb_command(f"shell cat {dump_file_on_device}")
-        run_adb_command(f"shell rm {dump_file_on_device}")
+        run_adb_command(f"shell rm -f {dump_file_on_device}")
 
         if not ok or not xml_content.strip():
             return False, f"Error reading UI XML: {xml_content}"
@@ -3630,14 +3669,14 @@ def _get_ui_elements(include_all=False):
 
         elements = []
 
-        def traverse(node):
+        def traverse(node, parent_clickable=False):
             attrib = node.attrib
             text = attrib.get("text", "").strip()
             content_desc = attrib.get("content-desc", "").strip()
             resource_id = attrib.get("resource-id", "").strip()
             class_name = attrib.get("class", "").split(".")[-1]
             bounds = attrib.get("bounds", "")
-            clickable = attrib.get("clickable", "false").lower() == "true"
+            clickable = attrib.get("clickable", "false").lower() == "true" or parent_clickable
             long_clickable = attrib.get("long-clickable", "false").lower() == "true"
             scrollable = attrib.get("scrollable", "false").lower() == "true"
             focusable = attrib.get("focusable", "false").lower() == "true"
@@ -3675,14 +3714,14 @@ def _get_ui_elements(include_all=False):
                     if checkable:       el["checkable"] = True
                     if checked:         el["checked"] = True
 
-                    # Only include small, off-screen, or zero-size elements if include_all
                     if width > 0 and height > 0:
                         elements.append(el)
                     elif include_all:
                         elements.append(el)
 
+            is_self_clickable = attrib.get("clickable", "false").lower() == "true"
             for child in node:
-                traverse(child)
+                traverse(child, parent_clickable=(clickable or is_self_clickable))
 
         traverse(root)
         return True, elements
@@ -3703,21 +3742,27 @@ def _score_element_match(el, target_lower):
 
     # Starts-with match
     if t.startswith(target_lower) or d.startswith(target_lower):
-        return 80 + (10 if el.get("clickable") else 0)
+        return 85 + (10 if el.get("clickable") else 0)
 
     # Substring match
     if target_lower in t or target_lower in d or target_lower in r or target_lower in fr:
-        return 60 + (10 if el.get("clickable") else 0)
+        return 70 + (10 if el.get("clickable") else 0)
 
-    # Token / word match (all query words appear in element label)
-    query_words = target_lower.split()
+    # Clean query tokens (remove command stopwords and fillers)
+    stopwords = {"play", "song", "video", "the", "a", "an", "on", "in", "by", "for", "to", "open", "click", "tap", "search"}
+    raw_tokens = target_lower.split()
+    core_tokens = [w for w in raw_tokens if w not in stopwords]
+    query_words = core_tokens if core_tokens else raw_tokens
+
     combined = f"{t} {d} {r}"
-    if len(query_words) > 1 and all(w in combined for w in query_words):
-        return 40 + (10 if el.get("clickable") else 0)
-
-    # Partial token overlap
-    if any(w in combined for w in query_words if len(w) > 3):
-        return 20 + (10 if el.get("clickable") else 0)
+    if len(query_words) >= 1:
+        matched_count = sum(1 for w in query_words if w in combined)
+        if matched_count == len(query_words):
+            # All core words found in this element!
+            return 80 + (10 if el.get("clickable") else 0)
+        elif matched_count > 0:
+            ratio = matched_count / len(query_words)
+            return int(50 * ratio) + (10 if el.get("clickable") else 0)
 
     return 0
 
@@ -3771,14 +3816,148 @@ def get_screen_text():
     return "\n".join(texts)
 
 
+def see_screen(include_elements=True):
+    """Acts as the AI's eyes. Captures the active phone screen, detects foreground app/activity,
+    and returns a clean, structured visual map of all interactive buttons, inputs, video/content cards,
+    and visible text with numbered indices [1], [2]... and exact coordinates for human-like phone control.
+    """
+    global _last_seen_elements
+    import re as _re
+
+    # 1. Capture screen photo to workspace for visual preview and history
+    try:
+        take_screenshot()
+    except Exception:
+        pass
+
+    # 2. Detect active foreground application and activity
+    app_info = "Unknown"
+    active_pkg = ""
+    ok, focus_out = run_adb_command("shell dumpsys window | grep -E 'mCurrentFocus|mFocusedApp'")
+    if ok and focus_out:
+        m = _re.search(r'([a-zA-Z0-9_\.]+)/([a-zA-Z0-9_\.]+)', focus_out)
+        if m:
+            active_pkg = m.group(1)
+            activity = m.group(2)
+            app_info = f"{active_pkg} ({activity})"
+
+    if not active_pkg or "Unknown" in app_info:
+        ok2, res_out = run_adb_command("shell dumpsys activity activities | grep -E 'mResumedActivity|topResumedActivity'")
+        if ok2 and res_out:
+            m = _re.search(r'([a-zA-Z0-9_\.]+)/([a-zA-Z0-9_\.]+)', res_out)
+            if m:
+                active_pkg = m.group(1)
+                activity = m.group(2)
+                app_info = f"{active_pkg} ({activity})"
+
+    friendly_app_names = {
+        "com.google.android.youtube": "YouTube",
+        "com.spotify.music": "Spotify",
+        "com.google.android.apps.youtube.music": "YouTube Music",
+        "com.whatsapp": "WhatsApp",
+        "com.android.chrome": "Google Chrome",
+        "com.google.android.apps.nexuslauncher": "Home Screen (Launcher)",
+        "com.sec.android.app.launcher": "Samsung Home Screen",
+        "com.android.settings": "Android Settings",
+        "com.android.vending": "Google Play Store",
+        "com.google.android.dialer": "Phone / Dialer",
+        "com.google.android.apps.messaging": "Messages (SMS)",
+        "com.google.android.googlequicksearchbox": "Google Search"
+    }
+    friendly_name = friendly_app_names.get(active_pkg, active_pkg or "Active App")
+
+    # 3. Retrieve UI Elements
+    ok, elements = _get_ui_elements(include_all=True)
+    if not ok or not elements:
+        return (
+            f"[SCREEN VISION - ACTIVE SCREEN]\n"
+            f"📱 Active App: {friendly_name} [{app_info}]\n"
+            f"📸 Screenshot: captured_screenshot.png (Saved to workspace)\n"
+            f"⚠️ Notice: Could not read UI hierarchy: {elements}"
+        )
+
+    _last_seen_elements = elements
+
+    interactive_items = []
+    text_items = []
+    seen_labels = set()
+
+    for idx, el in enumerate(elements, 1):
+        label = el.get("text") or el.get("content-desc") or el.get("resource-id") or ""
+        label = label.strip()
+        is_clickable = el.get("clickable") or el.get("focusable")
+        center = el.get("center", (0, 0))
+        el_class = el.get("class", "")
+
+        if not label:
+            continue
+
+        if "EditText" in el_class or el.get("focusable"):
+            interactive_items.append(f'[{idx}] Input Field: "{label}" -> Center: {center}')
+        elif is_clickable or "Button" in el_class or "ImageView" in el_class:
+            tag = "Button" if "Button" in el_class else ("Card/Item" if "Layout" in el_class or "ViewGroup" in el_class else "Clickable")
+            res = f' (ID: {el.get("resource-id")})' if el.get("resource-id") else ""
+            interactive_items.append(f'[{idx}] {tag} "{label}"{res} -> Center: {center}')
+        else:
+            if label not in seen_labels and len(label) > 1:
+                seen_labels.add(label)
+                text_items.append(f'"{label}"')
+
+    output = [
+        f"[SCREEN VISION - ACTIVE SCREEN]",
+        f"📱 Active App: {friendly_name} [{app_info}]",
+        f"📸 Screenshot: captured_screenshot.png (Saved to workspace)",
+    ]
+
+    if interactive_items:
+        output.append("\n🎯 Interactive Elements (Buttons, Inputs, Cards):")
+        for item in interactive_items[:30]:
+            output.append(f"  {item}")
+        if len(interactive_items) > 30:
+            output.append(f"  ... (+{len(interactive_items) - 30} more interactive elements)")
+
+    if text_items:
+        output.append("\n📝 Visible Screen Text:")
+        output.append("  " + " | ".join(text_items[:20]))
+
+    output.append(
+        "\n💡 Operator Action Hints:\n"
+        "  • Click any element by index: smart_ui_click(target=\"[Index]\")  (e.g. smart_ui_click(target=\"[2]\"))\n"
+        "  • Click any element by label: smart_ui_click(target=\"Label\")\n"
+        "  • Type & Submit Search: smart_ui_type(target=\"Search\", text=\"Query\", press_enter=True)\n"
+        "  • Tap coordinates: tap_coordinates(x=..., y=...)\n"
+        "  • Scroll for more: smart_ui_scroll(direction=\"down\", amount=1)"
+    )
+
+    return "\n".join(output)
+
+
 def smart_ui_click(target, scroll_attempts=3):
-    """Finds a UI element by visible text, description, or resource-id and taps it.
+    """Finds a UI element by visible text, description, resource-id, or index [1] from see_screen(), and taps it.
     
     Automatically scrolls down up to `scroll_attempts` times to find off-screen elements.
     Returns a success/error message.
     """
+    global _last_seen_elements
     import time
+    import re as _re
 
+    target_str = str(target).strip()
+
+    # 1. Check if target is an index reference from see_screen(), e.g. "[3]" or "3"
+    idx_match = _re.match(r'^\[?(\d+)\]?$', target_str)
+    if idx_match and _last_seen_elements:
+        idx = int(idx_match.group(1)) - 1
+        if 0 <= idx < len(_last_seen_elements):
+            el = _last_seen_elements[idx]
+            x, y = el["center"]
+            label = el.get("text") or el.get("content-desc") or el.get("resource-id") or f"Element {idx+1}"
+            tap_res = tap_screen(x, y)
+            time.sleep(0.4)
+            return f"Success: Clicked element [{idx+1}] '{label}' at coordinates ({x}, {y})."
+
+    # 2. Fuzzy match across screen elements
+    target_lower = target_str.lower()
     for attempt in range(scroll_attempts + 1):
         ok, elements = _get_ui_elements()
         if not ok:
@@ -3787,9 +3966,8 @@ def smart_ui_click(target, scroll_attempts=3):
         if not elements:
             return "Error: No visible UI elements detected on the screen."
 
-        target_lower = str(target).strip().lower()
+        _last_seen_elements = elements
 
-        # Score every element and pick the best match
         best_el = None
         best_score = 0
         for el in elements:
@@ -3800,11 +3978,11 @@ def smart_ui_click(target, scroll_attempts=3):
 
         if best_el and best_score >= 20:
             x, y = best_el["center"]
-            label = best_el.get("text") or best_el.get("content-desc") or best_el.get("resource-id") or "?"
+            label = best_el.get("text") or best_el.get("content-desc") or best_el.get("resource-id") or target_str
             tap_res = tap_screen(x, y)
-            time.sleep(0.3)
+            time.sleep(0.4)
             if "Success" in tap_res or "success" in tap_res.lower():
-                return f"Success: Clicked '{label}' ({best_el['class']}) at ({x}, {y})."
+                return f"Success: Clicked '{label}' ({best_el.get('class', 'element')}) at ({x}, {y})."
             return f"Error tapping '{label}' at ({x}, {y}): {tap_res}"
 
         # Element not found — scroll down and retry
@@ -3812,11 +3990,11 @@ def smart_ui_click(target, scroll_attempts=3):
             swipe_screen(500, 1400, 500, 600)
             time.sleep(0.6)
 
-    # Couldn't find element after scrolling — show visible samples for AI recovery
+    # Recovery hint
     ok, elements = _get_ui_elements()
     samples = []
     if ok:
-        for el in (elements or [])[:15]:
+        for el in (elements or [])[:12]:
             label = el.get("text") or el.get("content-desc") or el.get("resource-id")
             if label:
                 samples.append(f"'{label}'")
@@ -3824,12 +4002,15 @@ def smart_ui_click(target, scroll_attempts=3):
     return (
         f"Error: Could not find element matching '{target}' even after scrolling. "
         f"Currently visible elements: [{visible_hint}]. "
-        f"Try dump_ui_layout() to view the full current screen, or scroll further with swipe_screen()."
+        f"Use see_screen() to inspect the active screen."
     )
 
 
-def smart_ui_type(target="", text=""):
-    """Focuses target input element (by label/id) and types text. Uses clipboard paste for full emoji and unicode support."""
+def smart_ui_type(target="", text="", press_enter=False):
+    """Focuses target input element (by label/id/index) and types text.
+    Uses clipboard paste for full emoji and unicode support.
+    Optionally presses Enter/Search key if press_enter=True.
+    """
     import time
 
     if target:
@@ -3839,33 +4020,45 @@ def smart_ui_type(target="", text=""):
         time.sleep(0.4)
 
     if not text:
+        if press_enter or str(press_enter).lower() in ["true", "1", "yes"]:
+            run_adb_command("shell input keyevent 66")
+            return "Success: Element focused and Enter/Search key pressed."
         return "Success: Element focused (no text provided to type)."
 
     # Method 1: Clipboard paste — best for unicode, spaces, emojis
+    typed_ok = False
     try:
         clip_res = set_clipboard(text)
         if isinstance(clip_res, str) and clip_res.startswith("Success"):
             time.sleep(0.25)
             paste_ok, paste_out = run_adb_command("shell input keyevent 279")
             if paste_ok:
-                return f"Success: Typed '{text}' into {f'element \"{target}\"' if target else 'active field'} via clipboard paste."
+                typed_ok = True
     except Exception:
         pass
 
     # Method 2: Escaped shell input fallback
-    escaped_chars = []
-    for ch in str(text):
-        if ch == ' ':
-            escaped_chars.append('%s')
-        elif ch in ['\\', '"', "'", '$', '`', '&', ';', '(', ')', '<', '>', '|', '~', '*', '?', '!', '#']:
-            escaped_chars.append('\\' + ch)
-        else:
-            escaped_chars.append(ch)
-    escaped_text = "".join(escaped_chars)
-    type_ok, type_out = run_adb_command(f'shell input text "{escaped_text}"')
-    if type_ok:
-        return f"Success: Typed '{text}' into {f'element \"{target}\"' if target else 'active field'}."
-    return f"Error typing text: {type_out}"
+    if not typed_ok:
+        escaped_chars = []
+        for ch in str(text):
+            if ch == ' ':
+                escaped_chars.append('%s')
+            elif ch in ['\\', '"', "'", '$', '`', '&', ';', '(', ')', '<', '>', '|', '~', '*', '?', '!', '#']:
+                escaped_chars.append('\\' + ch)
+            else:
+                escaped_chars.append(ch)
+        escaped_text = "".join(escaped_chars)
+        type_ok, type_out = run_adb_command(f'shell input text "{escaped_text}"')
+        if not type_ok:
+            return f"Error typing text: {type_out}"
+
+    time.sleep(0.3)
+    if press_enter or str(press_enter).lower() in ["true", "1", "yes"]:
+        run_adb_command("shell input keyevent 66") # KEYCODE_ENTER
+        time.sleep(0.5)
+        return f"Success: Typed '{text}' into {f'element \"{target}\"' if target else 'active field'} and submitted Enter/Search."
+
+    return f"Success: Typed '{text}' into {f'element \"{target}\"' if target else 'active field'}."
 
 
 def smart_ui_scroll(direction="down", amount=1):
@@ -4172,7 +4365,13 @@ def send_whatsapp_message(contact_or_number, message, auto_send=True):
 
 
 def play_media(query, app="spotify"):
-    """Dispatches media playback intents for Spotify, YouTube, YouTube Music, or standard players."""
+    """Dispatches media playback for Spotify, YouTube, or YouTube Music.
+    For YouTube, it performs end-to-end human-like automation:
+    1. Launches YouTube and searches for the query.
+    2. Inspects screen elements to identify video result cards.
+    3. Taps the matching video card to start playback.
+    4. Verifies playback on screen.
+    """
     import urllib.parse
     import time
 
@@ -4180,47 +4379,113 @@ def play_media(query, app="spotify"):
     query_str = str(query).strip()
     encoded_q = urllib.parse.quote(query_str)
 
-    if app_choice == "spotify":
+    if app_choice in ["youtube", "yt"]:
+        print(f"🎬 [play_media] Initiating YouTube playback workflow for '{query_str}'...")
+        # Step 1: Try direct search VIEW intent first
+        intent_ok, _ = run_adb_command(f'shell am start -a android.intent.action.VIEW -d "vnd.youtube://www.youtube.com/results?search_query={encoded_q}"')
+        if not intent_ok:
+            run_adb_command(f'shell am start -a android.intent.action.VIEW -d "https://www.youtube.com/results?search_query={encoded_q}" -p com.google.android.youtube')
+        
+        # Give YouTube time to render search results
+        time.sleep(3.0)
+
+        ok, elements = _get_ui_elements(include_all=True)
+        search_results_found = False
+        if ok and elements:
+            for el in elements:
+                desc = (el.get("content-desc") or "").lower()
+                text = (el.get("text") or "").lower()
+                if "filter" in desc or "shorts" in text or "views" in desc or "channel" in desc:
+                    search_results_found = True
+                    break
+
+        if not search_results_found:
+            # Fallback to human UI search:
+            launch_app("com.google.android.youtube")
+            time.sleep(2.0)
+            smart_ui_click("Search", scroll_attempts=0)
+            time.sleep(0.6)
+            smart_ui_type("", query_str, press_enter=True)
+            time.sleep(3.0)
+            ok, elements = _get_ui_elements(include_all=True)
+
+        # Step 2: Identify and click the best matching video card
+        clicked_video = None
+        if ok and elements:
+            best_el = None
+            best_score = 0
+            for el in elements:
+                desc = el.get("content-desc", "")
+                text = el.get("text", "")
+                res_id = el.get("resource-id", "")
+                
+                # Exclude filter buttons, search bar, back button, bottom tabs
+                if any(x in (text + desc).lower() for x in ["all", "shorts", "unwatched", "recently uploaded", "navigate up", "voice search", "search youtube"]):
+                    if not any(w in (text + desc).lower() for w in query_str.lower().split()):
+                        continue
+
+                score = _score_element_match(el, query_str.lower())
+                if "views" in desc.lower() or "ago" in desc.lower():
+                    score += 25
+                if "title" in res_id.lower() or "thumbnail" in res_id.lower():
+                    score += 15
+
+                if score > best_score:
+                    best_score = score
+                    best_el = el
+
+            if best_el and best_score >= 20:
+                x, y = best_el["center"]
+                label = best_el.get("text") or best_el.get("content-desc") or query_str
+                tap_screen(x, y)
+                clicked_video = label[:60]
+            else:
+                # Click the first prominent clickable element in the results body
+                for el in elements:
+                    cx, cy = el["center"]
+                    if 350 < cy < 1300 and el.get("clickable"):
+                        tap_screen(cx, cy)
+                        clicked_video = el.get("text") or el.get("content-desc") or "First video result"
+                        break
+
+        # Step 3: Verification & Playback Trigger
+        time.sleep(2.0)
+        run_adb_command("shell input keyevent 126") # KEYCODE_MEDIA_PLAY
+
+        if clicked_video:
+            return (
+                f"Success: Opened YouTube, searched for '{query_str}', and tapped '{clicked_video}'. "
+                f"Video player launched and playback active on phone screen."
+            )
+        else:
+            return (
+                f"Partial: YouTube opened and searched for '{query_str}', but could not identify a clickable video card. "
+                f"Please inspect screen using see_screen() or tap the video directly."
+            )
+
+    elif app_choice in ["youtube_music", "yt_music", "ytmusic"]:
+        ok, out = run_adb_command(f'shell am start -a android.media.action.MEDIA_PLAY_FROM_SEARCH -e query "{query_str}" -p com.google.android.apps.youtube.music')
+        if not ok or "Error" in out:
+            run_adb_command(f'shell am start -a android.intent.action.VIEW -d "https://music.youtube.com/search?q={encoded_q}"')
+        time.sleep(2.5)
+        run_adb_command("shell input keyevent 126")
+        return f"Success: Launched YouTube Music playback for '{query_str}'."
+
+    elif app_choice == "spotify":
         ok, out = run_adb_command(f'shell am start -a android.media.action.MEDIA_PLAY_FROM_SEARCH -e query "{query_str}" -p com.spotify.music')
         if not ok or "Error" in out:
-            ok, out = run_adb_command(f'shell am start -a android.intent.action.VIEW -d "spotify:search:{encoded_q}" -p com.spotify.music')
-            if not ok or "Error" in out:
-                ok, out = run_adb_command(f'shell am start -a android.intent.action.VIEW -d "spotify:search:{encoded_q}"')
-
-        time.sleep(1.8)
+            run_adb_command(f'shell am start -a android.intent.action.VIEW -d "spotify:search:{encoded_q}" -p com.spotify.music')
+        time.sleep(2.5)
         for p_btn in ["Play", "Shuffle play", "play", "shuffle"]:
             c_res = smart_ui_click(p_btn, scroll_attempts=0)
-            if c_res.startswith("Success"):
+            if "Success" in c_res:
                 break
         run_adb_command("shell input keyevent 126")
         run_adb_command("shell input keyevent 85")
         return f"Success: Launched Spotify playback search for '{query_str}' and triggered play."
 
-    elif app_choice in ["youtube", "yt"]:
-        ok, out = run_adb_command(f'shell am start -a android.intent.action.SEARCH -q "{query_str}" -p com.google.android.youtube')
-        if not ok or "Error" in out:
-            ok, out = run_adb_command(f'shell am start -a android.intent.action.VIEW -d "https://www.youtube.com/results?search_query={encoded_q}"')
-        time.sleep(2.0)
-        dump_ok, elements = _get_ui_elements()
-        if dump_ok and elements:
-            for el in elements:
-                t = el.get("text", "").lower()
-                d = el.get("content-desc", "").lower()
-                if query_str.lower() in t or query_str.lower() in d:
-                    tap_screen(el["center"][0], el["center"][1])
-                    break
-        return f"Success: Launched YouTube search and playback for '{query_str}'."
-
-    elif app_choice in ["youtube_music", "yt_music", "ytmusic"]:
-        ok, out = run_adb_command(f'shell am start -a android.media.action.MEDIA_PLAY_FROM_SEARCH -e query "{query_str}" -p com.google.android.apps.youtube.music')
-        if not ok or "Error" in out:
-            ok, out = run_adb_command(f'shell am start -a android.intent.action.VIEW -d "https://music.youtube.com/search?q={encoded_q}"')
-        time.sleep(2.0)
-        run_adb_command("shell input keyevent 126")
-        return f"Success: Launched YouTube Music playback for '{query_str}'."
-
     else:
-        ok, out = run_adb_command(f'shell am start -a android.media.action.MEDIA_PLAY_FROM_SEARCH -e query "{query_str}"')
+        run_adb_command(f'shell am start -a android.media.action.MEDIA_PLAY_FROM_SEARCH -e query "{query_str}"')
         time.sleep(1.0)
         run_adb_command("shell input keyevent 126")
         return f"Success: Dispatched generic media play for '{query_str}'."
@@ -4579,6 +4844,9 @@ def execute_local_tool(name, args_str):
             return play_media(query, app)
         elif name == "dump_ui_layout":
             return dump_ui_layout()
+        elif name == "see_screen":
+            include_elements = kwargs.get("include_elements", True)
+            return see_screen(include_elements)
         elif name == "get_screen_text":
             return get_screen_text()
         elif name == "smart_ui_click":
@@ -4590,7 +4858,8 @@ def execute_local_tool(name, args_str):
         elif name == "smart_ui_type":
             text = kwargs.get("text", "")
             target = kwargs.get("target", "")
-            return smart_ui_type(target, text)
+            press_enter = kwargs.get("press_enter", False)
+            return smart_ui_type(target, text, press_enter)
         elif name == "smart_ui_scroll":
             direction = kwargs.get("direction", "down")
             amount = kwargs.get("amount", 1)
@@ -4712,7 +4981,7 @@ def get_ai_response_with_tools(messages):
         response_text = call_ai_api(messages)
         
         # Check for tool call trigger
-        match = re.search(r'\[TOOL_CALL:\s*(\w+)\((.*)\)\s*\]', response_text)
+        match = re.search(r'\[TOOL_CALL:\s*(\w+)\(([\s\S]*?)\)\s*\]', response_text)
         if not match:
             messages.append({"role": "assistant", "content": response_text})
             return response_text, messages
@@ -4886,7 +5155,7 @@ def get_ai_response_stream(messages):
             yield chunk
             
         # Check if the accumulated response contains a tool call
-        match = re.search(r'\[TOOL_CALL:\s*(\w+)\((.*)\)\s*\]', accumulated_response)
+        match = re.search(r'\[TOOL_CALL:\s*(\w+)\(([\s\S]*?)\)\s*\]', accumulated_response)
         if not match:
             messages.append({"role": "assistant", "content": accumulated_response})
             yield f"\n[HISTORY_SYNC]:{json.dumps(messages)}"

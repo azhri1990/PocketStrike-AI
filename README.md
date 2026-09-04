@@ -5,7 +5,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Platform-Termux%20%7C%20Android-green?style=for-the-badge&logo=android" alt="Platform" />
   <img src="https://img.shields.io/badge/Language-Python%20%7C%20JS-blue?style=for-the-badge&logo=python" alt="Languages" />
-  <img src="https://img.shields.io/badge/Tools-69%20Built--in%20+%20MCP-purple?style=for-the-badge" alt="Tools" />
+  <img src="https://img.shields.io/badge/Tools-76%20Built--in%20+%20MCP-purple?style=for-the-badge" alt="Tools" />
   <img src="https://img.shields.io/badge/License-MIT-orange?style=for-the-badge" alt="License" />
 </p>
 
@@ -209,7 +209,7 @@ PocketStrike AI is built with privacy-first principles. **Zero conversation data
 
 ## 🔧 ReAct Function Calling Tools
 
-PocketStrike AI has access to **75 built-in local tools** to audit, crawl, and control systems:
+PocketStrike AI has access to **76 built-in local tools** to audit, crawl, and control systems:
 
 > [!IMPORTANT]
 > Tools marked with **`[Requires Termux:API]`** require the **Termux:API** Android application (available on F-Droid) to be installed on your device, along with the CLI package (`pkg install termux-api`) configured inside Termux.
@@ -281,7 +281,15 @@ PocketStrike AI has access to **75 built-in local tools** to audit, crawl, and c
 | 63 | `jwt_decoder_analyzer(token)`| Decodes JSON Web Tokens (JWT), parses claims, and audits for security misconfigurations (e.g., 'none' alg). |
 | 64 | `system_process_monitor(filter)`| Monitors active Termux/Android processes, listing PID, CPU%, memory usage, and command lines. |
 | 65 | `send_whatsapp_message(contact, msg, auto_send)`| Sends WhatsApp messages autonomously via contacts resolution, deep link intent, or smart in-app navigation. |
-| 66 | `play_media(query, app)` | Dispatches media playback intents for Spotify, YouTube, or YouTube Music with auto-play. |
-| 67 | `smart_ui_click(target)` | Finds UI elements by visible text, content-desc, or resource ID and taps their center coordinates. |
-| 68 | `smart_ui_type(target, text)` | Focuses input elements and types text using clipboard paste (with emojis, spaces, and unicode support). |
+| 66 | `play_media(query, app)` | Dispatches media playback for Spotify, YouTube, or YouTube Music with end-to-end search, video card selection, and playback verification. |
+| 67 | `smart_ui_click(target)` | Finds UI elements by visible text, content-desc, resource ID, or numbered index from `see_screen()` (e.g. `[1]`) and taps their center coordinates. |
+| 68 | `smart_ui_type(target, text, press_enter)` | Focuses input elements and types text using clipboard paste (with emojis, spaces, unicode), with optional Enter/Search submission (`press_enter=True`). |
 | 69 | `send_android_intent(action, data_uri, pkg, extras)`| Dispatches custom Android Intents via Activity Manager (`am start`). |
+| 70 | `install_app(app_name)` | Autonomously opens Google Play Store, searches for the app, selects result, and clicks Install. |
+| 71 | `uninstall_app(package_name_or_app_name)` | Uninstalls an app directly via package manager or App Info UI. |
+| 72 | `smart_ui_scroll(direction, amount)` | Scrolls the screen ('down', 'up', 'left', 'right') when a target element is off-screen. |
+| 73 | `smart_ui_wait_for(target, timeout_sec)` | Waits for a specific UI element to appear on screen after screen transitions. |
+| 74 | `get_screen_text()` | Returns a plain text dump of all visible text on the active screen. |
+| 75 | `tap_coordinates(x, y)` | Taps an exact pixel coordinate (x, y) on the screen. |
+| 76 | `see_screen(include_elements)` | Acts as the AI's eyes. Captures phone screen, detects foreground app/activity, and returns a numbered visual map of all interactive buttons, inputs, video cards, and text with coordinates. |
+

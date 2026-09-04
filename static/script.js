@@ -697,6 +697,28 @@ function renderMessages() {
         const isToolCall = msg.content.trim().startsWith('[TOOL_CALL:');
         const isToolResult = msg.content.trim().startsWith('[TOOL_RESULT:');
 
+        // Handle assistant messages that contain both step-by-step reasoning/plan text AND a tool call
+        if (!isToolCall && !isToolResult && msg.content.includes('[TOOL_CALL:') && msg.role === 'assistant') {
+            let nextMsg = (i + 1 < msgs.length) ? msgs[i + 1] : null;
+            let fullContent = msg.content;
+            if (nextMsg && nextMsg.content.trim().startsWith('[TOOL_RESULT:')) {
+                fullContent = msg.content + "\n" + nextMsg.content;
+                i++; // Consume the following tool result message so it renders together
+            }
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'message assistant';
+            const avatarIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg>`;
+            msgDiv.innerHTML = `
+                <div class="message-avatar">${avatarIcon}</div>
+                <div class="message-content-wrapper">
+                    <div class="message-bubble">${parseMarkdown(fullContent)}</div>
+                </div>
+            `;
+            messagesContainer.appendChild(msgDiv);
+            i++;
+            continue;
+        }
+
         if (isToolCall) {
             const match = msg.content.match(/\[TOOL_CALL:\s*(\w+)\(([\s\S]*?)\)\s*\]/);
             const toolName = match ? match[1] : 'Tool';
