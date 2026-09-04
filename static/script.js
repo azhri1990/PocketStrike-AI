@@ -1253,14 +1253,13 @@ async function handleRemoveMcp(name) {
 setInterval(loadMcpConnections, 15000);
 
 // ==========================================
-// 🎙️ Google Assistant & JARVIS Voice Engine
+// 🎙️ Strike Voice Assistant Engine (Two-Stage Wake Word)
 // ==========================================
-let isVoiceActive = false;
-let isAiSpeaking = false;
-let isVoiceSending = false;
+let voiceState = 'off'; // 'off', 'background', 'greeting', 'activated', 'thinking', 'speaking'
 let speechRecognitionObj = null;
 let speechSilenceTimer = null;
 let audioCtx = null;
+let isVoiceSending = false;
 
 // Audio Earcons (Web Audio API Synthesizer - Zero Downloads)
 function getAudioContext() {
@@ -1284,7 +1283,7 @@ function playWakeChime() {
         osc.type = 'sine';
         osc.connect(gain);
         gain.connect(ctx.destination);
-        // Ascending pleasant two-tone chime (Google Assistant / Siri signature)
+        // Ascending pleasant two-tone chime
         osc.frequency.setValueAtTime(440, now);
         osc.frequency.setValueAtTime(880, now + 0.08);
         gain.gain.setValueAtTime(0.12, now);
@@ -1335,14 +1334,14 @@ function cleanTextForSpeech(text) {
     return clean;
 }
 
-// Visual HUD Manager (Floating Google Assistant / Siri Style Bottom Card)
+// Visual HUD Manager
 function setVoiceHudState(state, text = '') {
     const voiceHud = document.getElementById('voiceAssistantOverlay');
     const voiceHudStatus = document.getElementById('voiceHudStatus');
     const voiceHudTranscript = document.getElementById('voiceHudTranscript');
     if (!voiceHud) return;
 
-    voiceHud.classList.remove('listening', 'thinking', 'speaking');
+    voiceHud.classList.remove('listening', 'thinking', 'speaking', 'background');
 
     if (state === 'hidden') {
         voiceHud.classList.remove('active');
@@ -1351,9 +1350,12 @@ function setVoiceHudState(state, text = '') {
 
     voiceHud.classList.add('active', state);
 
-    if (state === 'listening') {
+    if (state === 'background') {
+        if (voiceHudStatus) voiceHudStatus.textContent = "Background Mode";
+        if (voiceHudTranscript) voiceHudTranscript.textContent = text || 'Waiting for "Hello Strike"...';
+    } else if (state === 'listening') {
         if (voiceHudStatus) voiceHudStatus.textContent = "Listening...";
-        if (voiceHudTranscript) voiceHudTranscript.textContent = text || 'Say "Hey Strike" or speak a command...';
+        if (voiceHudTranscript) voiceHudTranscript.textContent = text || 'Speak your command...';
     } else if (state === 'thinking') {
         if (voiceHudStatus) voiceHudStatus.textContent = "Thinking...";
         if (voiceHudTranscript) voiceHudTranscript.textContent = text || 'Processing command...';
@@ -1364,16 +1366,15 @@ function setVoiceHudState(state, text = '') {
 }
 
 // Speak AI Response with Anti-Echo Microphone Muting
-function speakTextResponse(text) {
+function speakTextResponse(text, isGreeting = false) {
     if (!('speechSynthesis' in window)) return;
     try {
         window.speechSynthesis.cancel();
         const spokenText = cleanTextForSpeech(text);
         if (!spokenText) return;
 
-        isAiSpeaking = true;
+        voiceState = isGreeting ? 'greeting' : 'speaking';
 
-        // Anti-Echo: Mute microphone recognition so assistant never transcribes its own speakers
         if (speechRecognitionObj) {
             try { speechRecognitionObj.abort(); } catch (e) {}
         }
@@ -1384,23 +1385,29 @@ function speakTextResponse(text) {
         utterance.rate = 1.05;
         utterance.pitch = 1.0;
 
-        // Choose preferred natural voice
         const voices = window.speechSynthesis.getVoices();
         const preferredVoice = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Natural') || v.name.includes('Google') || v.name.includes('Siri') || v.name.includes('Samantha')));
         if (preferredVoice) utterance.voice = preferredVoice;
 
         const onSpeechFinish = () => {
-            isAiSpeaking = false;
-            // Cooldown before unmuting mic to avoid capturing speaker decay
-            if (isVoiceActive) {
-                setVoiceHudState('listening', 'Say "Hey Strike" or speak your next command...');
+            if (isGreeting) {
+                // After saying "Hello, how can I assist you?", go straight to activated listening mode
+                voiceState = 'activated';
+                setVoiceHudState('listening', 'I am listening...');
                 setTimeout(() => {
-                    if (isVoiceActive && !isAiSpeaking && !isGenerating && !isVoiceSending) {
+                    if (voiceState === 'activated') {
+                        try { speechRecognitionObj.start(); } catch (e) {}
+                    }
+                }, 150);
+            } else {
+                // After finishing a normal response, return to background wake-word mode
+                voiceState = 'background';
+                setVoiceHudState('background', 'Waiting for "Hello Strike"...');
+                setTimeout(() => {
+                    if (voiceState === 'background' && !isGenerating && !isVoiceSending) {
                         try { speechRecognitionObj.start(); } catch (e) {}
                     }
                 }, 350);
-            } else {
-                setVoiceHudState('hidden');
             }
         };
 
@@ -1410,8 +1417,8 @@ function speakTextResponse(text) {
         window.speechSynthesis.speak(utterance);
     } catch (e) {
         console.error("Speech Synthesis error:", e);
-        isAiSpeaking = false;
-        if (isVoiceActive) setVoiceHudState('listening');
+        voiceState = 'background';
+        setVoiceHudState('background');
     }
 }
 
@@ -1426,20 +1433,17 @@ function initVoiceAssistant() {
             headerVoiceBtn.title = "Voice Assistant not supported in this browser";
             headerVoiceBtn.style.opacity = "0.4";
         }
-        if (inputVoiceBtn) {
-            inputVoiceBtn.style.opacity = "0.4";
-        }
+        if (inputVoiceBtn) inputVoiceBtn.style.opacity = "0.4";
         return;
     }
 
     speechRecognitionObj = new SpeechRecognition();
-    speechRecognitionObj.continuous = false;
+    speechRecognitionObj.continuous = true; // Always on!
     speechRecognitionObj.interimResults = true;
     speechRecognitionObj.lang = 'en-US';
 
     const toggleVoice = () => {
-        isVoiceActive = !isVoiceActive;
-        if (isVoiceActive) {
+        if (voiceState === 'off') {
             startVoiceListening();
         } else {
             stopVoiceListening();
@@ -1451,29 +1455,36 @@ function initVoiceAssistant() {
     if (voiceHudClose) voiceHudClose.addEventListener('click', () => stopVoiceListening());
 
     speechRecognitionObj.onresult = (event) => {
-        if (isVoiceSending || isAiSpeaking) return;
+        if (isVoiceSending || voiceState === 'speaking' || voiceState === 'greeting' || voiceState === 'off' || voiceState === 'thinking') return;
 
         let transcript = '';
         let isFinal = false;
 
-        for (let i = 0; i < event.results.length; ++i) {
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
             transcript += event.results[i][0].transcript;
-            if (event.results[i].isFinal) {
-                isFinal = true;
-            }
+            if (event.results[i].isFinal) isFinal = true;
         }
 
         const rawText = transcript.trim();
         if (!rawText) return;
-
         const lowerText = rawText.toLowerCase();
-        const wakeWords = [
-            "hey strike", "strike", "hey pocket strike", "pocket strike",
-            "ok strike", "hi strike", "hey jarvis", "jarvis", "ok jarvis"
-        ];
-        const hasWakeWord = wakeWords.some(w => lowerText.includes(w));
 
-        if (hasWakeWord || isVoiceActive) {
+        const wakeWords = ["hello strike", "hey strike", "ok strike", "hi strike"];
+
+        // 1. If we are in background mode, ONLY listen for the wake word
+        if (voiceState === 'background') {
+            const hasWakeWord = wakeWords.some(w => lowerText.includes(w));
+            if (hasWakeWord) {
+                // Wake word detected! Abort current recognition and trigger greeting
+                try { speechRecognitionObj.abort(); } catch (e) {}
+                playWakeChime();
+                speakTextResponse("Hello, how can I assist you?", true); // isGreeting = true
+            }
+            return;
+        }
+
+        // 2. If we are in activated mode, treat speech as the actual command
+        if (voiceState === 'activated') {
             let cleanPrompt = rawText;
             wakeWords.forEach(w => {
                 const reg = new RegExp(`\\b${w}\\b`, "gi");
@@ -1481,16 +1492,13 @@ function initVoiceAssistant() {
             });
 
             if (cleanPrompt.length > 0) {
-                // Update live transcript in both HUD and chat textarea
                 setVoiceHudState('listening', `"${cleanPrompt}"`);
                 chatInput.value = cleanPrompt;
                 autoGrowInput();
 
                 if (speechSilenceTimer) clearTimeout(speechSilenceTimer);
 
-                // Google Assistant VAD: 350ms after sentence finalization, 750ms on interim pauses
-                const silenceDelay = isFinal ? 350 : 750;
-
+                const silenceDelay = isFinal ? 400 : 900;
                 speechSilenceTimer = setTimeout(() => {
                     submitVoicePrompt();
                 }, silenceDelay);
@@ -1499,42 +1507,36 @@ function initVoiceAssistant() {
     };
 
     speechRecognitionObj.onerror = (event) => {
-        console.warn("Speech Recognition status:", event.error);
         if (event.error === 'not-allowed') {
             stopVoiceListening();
-            alert("Microphone permission denied. Please allow microphone access in your browser.");
+            alert("Microphone permission denied.");
         }
     };
 
     speechRecognitionObj.onend = () => {
-        // If speech completed and prompt exists, submit immediately
-        if (chatInput.value.trim().length > 1 && !isGenerating && !isVoiceSending && !isAiSpeaking && isVoiceActive) {
-            submitVoicePrompt();
-            return;
-        }
-
-        // Auto restart recognition loop if voice mode is active and AI isn't speaking
-        if (isVoiceActive && !isGenerating && !isVoiceSending && !isAiSpeaking) {
-            setTimeout(() => {
-                try { speechRecognitionObj.start(); } catch (e) {}
-            }, 250);
+        // Auto restart recognition loop to ensure it's "always working"
+        if (voiceState === 'background' || voiceState === 'activated') {
+            if (!isGenerating && !isVoiceSending) {
+                setTimeout(() => {
+                    try { speechRecognitionObj.start(); } catch (e) {}
+                }, 200);
+            }
         }
     };
 }
 
 function submitVoicePrompt() {
     const promptToSend = chatInput.value.trim();
-    if (promptToSend.length > 1 && !isGenerating && !isVoiceSending && !isAiSpeaking) {
+    if (promptToSend.length > 0 && !isGenerating && !isVoiceSending && voiceState === 'activated') {
         isVoiceSending = true;
-        console.log("🎙️ JARVIS Voice Engine - Submitting Prompt:", promptToSend);
+        console.log("🎙️ Strike Voice Engine - Submitting:", promptToSend);
 
         if (speechSilenceTimer) clearTimeout(speechSilenceTimer);
 
-        try {
-            speechRecognitionObj.stop();
-        } catch (e) {}
+        try { speechRecognitionObj.abort(); } catch (e) {}
 
         playDoneChime();
+        voiceState = 'thinking';
         setVoiceHudState('thinking', `"${promptToSend}"`);
 
         handleSend();
@@ -1548,27 +1550,24 @@ function submitVoicePrompt() {
 function startVoiceListening() {
     if (!speechRecognitionObj) return;
     try {
+        voiceState = 'background';
         speechRecognitionObj.start();
-        isVoiceActive = true;
+        
         const headerVoiceBtn = document.getElementById('voiceBtn');
         const inputVoiceBtn = document.getElementById('voiceInputBtn');
         if (headerVoiceBtn) headerVoiceBtn.classList.add('active');
         if (inputVoiceBtn) inputVoiceBtn.classList.add('active');
         
-        playWakeChime();
-        setVoiceHudState('listening', 'Say "Hey Strike" or speak a command...');
+        setVoiceHudState('background', 'Waiting for "Hello Strike"...');
     } catch (e) {
         console.error("Failed to start voice assistant:", e);
     }
 }
 
 function stopVoiceListening() {
-    if (!speechRecognitionObj) return;
-    try {
-        speechRecognitionObj.stop();
-    } catch (e) {}
-    isVoiceActive = false;
-    isAiSpeaking = false;
+    voiceState = 'off';
+    try { speechRecognitionObj.abort(); } catch (e) {}
+    
     const headerVoiceBtn = document.getElementById('voiceBtn');
     const inputVoiceBtn = document.getElementById('voiceInputBtn');
     if (headerVoiceBtn) headerVoiceBtn.classList.remove('active');
@@ -1577,3 +1576,4 @@ function stopVoiceListening() {
     setVoiceHudState('hidden');
     if ('speechSynthesis' in window) window.speechSynthesis.cancel();
 }
+
