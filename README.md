@@ -209,7 +209,7 @@ PocketStrike AI is built with privacy-first principles. **Zero conversation data
 
 ## 🔧 ReAct Function Calling Tools
 
-PocketStrike AI has access to **69 built-in local tools** to audit, crawl, and control systems:
+PocketStrike AI has access to **75 built-in local tools** to audit, crawl, and control systems:
 
 > [!IMPORTANT]
 > Tools marked with **`[Requires Termux:API]`** require the **Termux:API** Android application (available on F-Droid) to be installed on your device, along with the CLI package (`pkg install termux-api`) configured inside Termux.
